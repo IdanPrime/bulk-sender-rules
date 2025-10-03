@@ -1,47 +1,82 @@
 import ScanResults from "@/components/ScanResults";
+import { useEffect, useState } from "react";
+import { useLocation } from "wouter";
+import { useMutation } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 
 export default function ScanPage() {
-  //todo: remove mock functionality
-  const mockRecords = [
-    {
-      type: "SPF",
-      status: "PASS" as const,
-      record: "v=spf1 include:_spf.google.com ~all",
+  const [scanData, setScanData] = useState<any>(null);
+  const [, setLocation] = useLocation();
+  const { toast } = useToast();
+
+  useEffect(() => {
+    const stored = sessionStorage.getItem("scanResult");
+    if (stored) {
+      setScanData(JSON.parse(stored));
+    } else {
+      setLocation("/");
+    }
+  }, [setLocation]);
+
+  const generateReportMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/report", {
+        domainId: null,
+        scanJson: scanData,
+      });
+      return await res.json();
     },
-    {
-      type: "DKIM",
-      status: "WARN" as const,
-      record: "v=DKIM1; k=rsa; p=MIGfMA0GCSqGSIb3DQEBAQUAA4...",
-      issues: ["Weak key size (1024-bit)"],
-      suggestions: ["Upgrade to 2048-bit RSA key"],
+    onSuccess: (report: any) => {
+      setLocation(`/report/${report.slug}`);
+      toast({
+        title: "Report generated",
+        description: "Your report is ready to share!",
+      });
     },
-    {
-      type: "DMARC",
-      status: "FAIL" as const,
-      issues: ["No DMARC record found"],
-      suggestions: ["Add DMARC record: v=DMARC1; p=quarantine; rua=mailto:dmarc@example.com"],
+    onError: () => {
+      toast({
+        title: "Failed to generate report",
+        description: "Unable to create shareable report. Please try again.",
+        variant: "destructive",
+      });
     },
-    {
-      type: "BIMI",
-      status: "FAIL" as const,
-      issues: ["BIMI not configured"],
-      suggestions: ["Optional: Add BIMI record for brand logo in inbox"],
-    },
-    {
-      type: "MX",
-      status: "PASS" as const,
-      record: "10 mx1.example.com, 20 mx2.example.com",
-    },
+  });
+
+  const handleShare = () => {
+    navigator.clipboard.writeText(window.location.href);
+    toast({
+      title: "Link copied",
+      description: "Scan results link copied to clipboard",
+    });
+  };
+
+  if (!scanData) {
+    return null;
+  }
+
+  const records = [
+    { type: "SPF", ...scanData.spf },
+    ...(scanData.dkim.selectors || []).map((s: any) => ({
+      type: `DKIM (${s.selector})`,
+      status: s.status,
+      record: s.record,
+      issues: s.issues,
+      suggestions: s.suggestions,
+    })),
+    { type: "DMARC", ...scanData.dmarc },
+    { type: "BIMI", ...scanData.bimi },
+    { type: "MX", ...scanData.mx },
   ];
 
   return (
     <ScanResults
-      domain="example.com"
-      overallStatus="WARN"
-      criticalIssues={2}
-      records={mockRecords}
-      onGenerateReport={() => console.log("Generate report")}
-      onShare={() => console.log("Share")}
+      domain={scanData.domain}
+      overallStatus={scanData.summary.overall}
+      criticalIssues={scanData.summary.criticalIssues}
+      records={records}
+      onGenerateReport={() => generateReportMutation.mutate()}
+      onShare={handleShare}
     />
   );
 }

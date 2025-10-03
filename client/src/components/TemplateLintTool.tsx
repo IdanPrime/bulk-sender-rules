@@ -4,6 +4,8 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { AlertTriangle, CheckCircle2, Lightbulb } from "lucide-react";
 import { useState } from "react";
+import { useMutation } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
 
 export default function TemplateLintTool() {
   const [subject, setSubject] = useState("");
@@ -14,33 +16,21 @@ export default function TemplateLintTool() {
     suggestions: string[];
   } | null>(null);
 
+  const lintMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/template-lint", {
+        subject,
+        text: body,
+      });
+      return await res.json();
+    },
+    onSuccess: (data: any) => {
+      setResults(data);
+    },
+  });
+
   const handleLint = () => {
-    const warnings: string[] = [];
-    const suggestions: string[] = [];
-    let score = 100;
-
-    if (subject.toUpperCase() === subject && subject.length > 0) {
-      warnings.push("Subject line is in ALL CAPS");
-      score -= 15;
-    }
-    if (subject.includes("FREE") || subject.includes("!!!")) {
-      warnings.push("Contains spam trigger words (FREE, !!!)");
-      score -= 20;
-    }
-    if (body.includes("http://")) {
-      warnings.push("Contains naked HTTP links (not HTTPS)");
-      score -= 10;
-    }
-    if (subject.length > 60) {
-      suggestions.push("Consider shortening subject line (currently over 60 chars)");
-      score -= 5;
-    }
-
-    setResults({
-      score: Math.max(0, score),
-      warnings,
-      suggestions,
-    });
+    lintMutation.mutate();
   };
 
   const getScoreColor = (score: number) => {
@@ -83,8 +73,9 @@ export default function TemplateLintTool() {
             onClick={handleLint}
             className="w-full"
             data-testid="button-lint"
+            disabled={lintMutation.isPending || !subject}
           >
-            Analyze Template
+            {lintMutation.isPending ? "Analyzing..." : "Analyze Template"}
           </Button>
         </div>
 

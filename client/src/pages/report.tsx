@@ -1,38 +1,56 @@
 import PublicReport from "@/components/PublicReport";
+import { useQuery } from "@tanstack/react-query";
+import { useRoute } from "wouter";
+import { Loader2 } from "lucide-react";
+import { formatDistanceToNow } from "date-fns";
 
 export default function ReportPage() {
-  //todo: remove mock functionality
-  const mockRecords = [
-    {
-      type: "SPF",
-      status: "PASS" as const,
-      record: "v=spf1 include:_spf.google.com ~all",
-    },
-    {
-      type: "DKIM",
-      status: "PASS" as const,
-      record: "v=DKIM1; k=rsa; p=MIGfMA0GCSqGSIb3DQEBAQUAA4...",
-    },
-    {
-      type: "DMARC",
-      status: "WARN" as const,
-      record: "v=DMARC1; p=none; rua=mailto:dmarc@example.com",
-      issues: ["Policy set to 'none'"],
-      suggestions: ["Change to 'quarantine' or 'reject'"],
-    },
-    {
-      type: "MX",
-      status: "PASS" as const,
-      record: "10 mx1.example.com",
-    },
+  const [, params] = useRoute("/report/:slug");
+  const slug = params?.slug || "";
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["/api/report", slug],
+    queryFn: () => fetch(`/api/report/${slug}`).then(r => r.json()),
+    enabled: !!slug,
+  });
+
+  if (isLoading) {
+    return (
+      <div className="max-w-7xl mx-auto px-6 py-12 flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (!data || !data.report) {
+    return (
+      <div className="max-w-7xl mx-auto px-6 py-12 text-center">
+        <p className="text-muted-foreground">Report not found</p>
+      </div>
+    );
+  }
+
+  const scanData = data.report.scanJson;
+  const records = [
+    { type: "SPF", ...scanData.spf },
+    ...(scanData.dkim.selectors || []).map((s: any) => ({
+      type: `DKIM (${s.selector})`,
+      status: s.status,
+      record: s.record,
+      issues: s.issues,
+      suggestions: s.suggestions,
+    })),
+    { type: "DMARC", ...scanData.dmarc },
+    { type: "BIMI", ...scanData.bimi },
+    { type: "MX", ...scanData.mx },
   ];
 
   return (
     <PublicReport
-      domain="example.com"
-      scanDate="Oct 1, 2025"
-      overallStatus="PASS"
-      records={mockRecords}
+      domain={scanData.domain}
+      scanDate={formatDistanceToNow(new Date(data.report.createdAt), { addSuffix: true })}
+      overallStatus={scanData.summary.overall}
+      records={records}
     />
   );
 }

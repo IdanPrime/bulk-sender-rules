@@ -2,13 +2,37 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Search, Shield, Zap, BarChart3 } from "lucide-react";
 import { useState } from "react";
+import { useLocation } from "wouter";
+import { useMutation } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 
 export default function LandingHero() {
   const [domain, setDomain] = useState("");
+  const [, setLocation] = useLocation();
+  const { toast } = useToast();
+
+  const scanMutation = useMutation({
+    mutationFn: async (domain: string) => {
+      const res = await apiRequest("POST", "/api/scan", { domain });
+      return await res.json();
+    },
+    onSuccess: (data: any) => {
+      sessionStorage.setItem("scanResult", JSON.stringify(data));
+      setLocation("/scan");
+    },
+    onError: () => {
+      toast({
+        title: "Scan failed",
+        description: "Failed to scan domain. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
 
   const handleScan = () => {
     if (domain) {
-      console.log("Scanning domain:", domain);
+      scanMutation.mutate(domain);
     }
   };
 
@@ -29,17 +53,20 @@ export default function LandingHero() {
               placeholder="Enter your domain (e.g., example.com)"
               value={domain}
               onChange={(e) => setDomain(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleScan()}
               className="flex-1"
               data-testid="input-domain"
+              disabled={scanMutation.isPending}
             />
             <Button
               onClick={handleScan}
               size="default"
               className="px-8"
               data-testid="button-scan"
+              disabled={scanMutation.isPending || !domain}
             >
               <Search className="h-4 w-4 mr-2" />
-              Scan Now
+              {scanMutation.isPending ? "Scanning..." : "Scan Now"}
             </Button>
           </div>
           <p className="text-sm text-muted-foreground">
