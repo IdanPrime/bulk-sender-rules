@@ -50,7 +50,13 @@ export function registerAuthRoutes(app: Express) {
         if (err) {
           return res.status(500).json({ error: "Login failed" });
         }
-        return res.json({ success: true, user: { id: user.id, email: user.email } });
+        
+        req.session.save((err) => {
+          if (err) {
+            return res.status(500).json({ error: "Session save failed" });
+          }
+          return res.json({ success: true, user: { id: user.id, email: user.email } });
+        });
       });
     })(req, res, next);
   });
