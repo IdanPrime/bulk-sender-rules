@@ -40,21 +40,41 @@ export function registerAuthRoutes(app: Express) {
   app.post("/api/auth/login", (req, res, next) => {
     passport.authenticate("local", (err: any, user: any, info: any) => {
       if (err) {
+        console.error("Login authentication error:", err);
         return res.status(500).json({ error: "Authentication failed" });
       }
       if (!user) {
+        console.log("Login failed - no user:", info?.message);
         return res.status(401).json({ error: info?.message || "Invalid credentials" });
       }
 
+      console.log("Login successful for user:", user.email, "ID:", user.id);
+      
       req.logIn(user, (err) => {
         if (err) {
+          console.error("req.logIn error:", err);
           return res.status(500).json({ error: "Login failed" });
         }
         
+        console.log("req.logIn successful, session ID:", req.sessionID);
+        console.log("Session before save:", { 
+          sessionID: req.sessionID, 
+          isAuthenticated: req.isAuthenticated(),
+          userId: req.user ? (req.user as any).id : null 
+        });
+        
         req.session.save((err) => {
           if (err) {
+            console.error("Session save error:", err);
             return res.status(500).json({ error: "Session save failed" });
           }
+          
+          console.log("Session saved successfully:", {
+            sessionID: req.sessionID,
+            isAuthenticated: req.isAuthenticated(),
+            userId: req.user ? (req.user as any).id : null
+          });
+          
           return res.json({ success: true, user: { id: user.id, email: user.email } });
         });
       });
@@ -71,6 +91,13 @@ export function registerAuthRoutes(app: Express) {
   });
 
   app.get("/api/auth/session", (req, res) => {
+    console.log("Session check:", {
+      sessionID: req.sessionID,
+      isAuthenticated: req.isAuthenticated(),
+      hasUser: !!req.user,
+      userId: req.user ? (req.user as any).id : null
+    });
+    
     if (req.isAuthenticated() && req.user) {
       const user = req.user as any;
       res.json({ 

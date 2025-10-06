@@ -20,8 +20,8 @@ export default function LoginPage() {
       const res = await apiRequest("POST", "/api/auth/login", { email, password });
       return await res.json();
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/auth/session"] });
+    onSuccess: async () => {
+      await queryClient.refetchQueries({ queryKey: ["/api/auth/session"] });
       toast({
         title: "Welcome back!",
         description: "You've successfully logged in.",
