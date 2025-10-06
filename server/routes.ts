@@ -5,11 +5,31 @@ import { scanDNS } from "./lib/dns-scanner";
 import { lintTemplate } from "./lib/template-linter";
 import { insertDomainSchema, insertReportSchema, insertHealthPointSchema, insertTemplateCheckSchema } from "@shared/schema";
 import { randomBytes } from "crypto";
+import { registerAuthRoutes, requireAuth } from "./auth-routes";
+import { runDailyRescans } from "./lib/cron";
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  registerAuthRoutes(app);
+
+  app.post("/api/cron/rescan", async (req, res) => {
+    try {
+      const authKey = req.headers["x-cron-secret"] || req.query.key;
+      const expectedKey = process.env.CRON_SECRET || "change-me-in-production";
+
+      if (authKey !== expectedKey) {
+        return res.status(403).json({ error: "Forbidden" });
+      }
+
+      const result = await runDailyRescans();
+      res.json(result);
+    } catch (error: any) {
+      console.error("Cron rescan error:", error);
+      res.status(500).json({ error: "Re-scan failed", details: error.message });
+    }
+  });
   app.post("/api/scan", async (req, res) => {
     try {
-      const { domain } = req.body;
+      const { domain, save } = req.body;
 
       if (!domain || typeof domain !== "string") {
         return res.status(400).json({ error: "Domain is required" });
@@ -18,6 +38,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const cleanDomain = domain.toLowerCase().trim().replace(/^https?:\/\//, "").replace(/\/$/, "");
       
       const scanResult = await scanDNS(cleanDomain);
+
+      if (save && req.isAuthenticated() && req.user) {
+        const user = req.user as any;
+        
+        let userDomain = await storage.getDomainByName(user.id, cleanDomain);
+        if (!userDomain) {
+          userDomain = await storage.createDomain({
+            name: cleanDomain,
+            userId: user.id,
+          });
+        }
+
+        const slug = randomBytes(10).toString("hex");
+        const report = await storage.createReport({
+          slug,
+          domainId: userDomain.id,
+          scanJson: scanResult,
+        });
+
+        return res.json({ ...scanResult, reportSlug: report.slug, saved: true });
+      }
       
       res.json(scanResult);
     } catch (error: any) {
@@ -26,14 +67,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/domain", async (req, res) => {
+  app.get("/api/dashboard", requireAuth, async (req, res) => {
     try {
-      const { name, userId } = req.body;
-      const parsedDomain = insertDomainSchema.parse({ name, userId });
+      const user = req.user as any;
+      const domains = await storage.getDomainsByUserId(user.id);
       
-      const existingDomain = userId 
-        ? await storage.getDomainByName(userId, name)
-        : null;
+      const domainsWithReports = await Promise.all(
+        domains.map(async (domain) => {
+          const reports = await storage.getReportsByDomainId(domain.id);
+          return {
+            ...domain,
+            latestReport: reports[0] || null,
+          };
+        })
+      );
+
+      res.json({ domains: domainsWithReports });
+    } catch (error: any) {
+      console.error("Dashboard error:", error);
+      res.status(500).json({ error: "Failed to load dashboard" });
+    }
+  });
+
+  app.post("/api/domain", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { name } = req.body;
+      const parsedDomain = insertDomainSchema.parse({ name, userId: user.id });
+      
+      const existingDomain = await storage.getDomainByName(user.id, name);
 
       if (existingDomain) {
         return res.status(400).json({ error: "Domain already exists" });
@@ -100,8 +162,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/domain/:id", async (req, res) => {
+  app.delete("/api/domain/:id", requireAuth, async (req, res) => {
     try {
+      const user = req.user as any;
+      const domain = await storage.getDomain(req.params.id);
+      
+      if (!domain || domain.userId !== user.id) {
+        return res.status(404).json({ error: "Domain not found" });
+      }
+
       await storage.deleteDomain(req.params.id);
       res.json({ success: true });
     } catch (error: any) {
