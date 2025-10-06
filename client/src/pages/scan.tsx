@@ -4,11 +4,13 @@ import { useLocation } from "wouter";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/use-auth";
 
 export default function ScanPage() {
   const [scanData, setScanData] = useState<any>(null);
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const { isAuthenticated } = useAuth();
 
   useEffect(() => {
     const stored = sessionStorage.getItem("scanResult");
@@ -18,6 +20,35 @@ export default function ScanPage() {
       setLocation("/");
     }
   }, [setLocation]);
+
+  const saveAndShareMutation = useMutation({
+    mutationFn: async () => {
+      if (!scanData.domain) {
+        throw new Error("Domain information missing");
+      }
+      const res = await apiRequest("POST", "/api/scan", {
+        domain: scanData.domain,
+        save: true,
+      });
+      return await res.json();
+    },
+    onSuccess: (data: any) => {
+      if (data.reportSlug) {
+        setLocation(`/report/${data.reportSlug}`);
+        toast({
+          title: "Scan saved!",
+          description: "Your scan has been saved and is ready to share.",
+        });
+      }
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Failed to save scan",
+        description: error.message || "Unable to save scan. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
 
   const generateReportMutation = useMutation({
     mutationFn: async () => {
@@ -76,7 +107,9 @@ export default function ScanPage() {
       criticalIssues={scanData.summary.criticalIssues}
       records={records}
       onGenerateReport={() => generateReportMutation.mutate()}
+      onSaveAndShare={isAuthenticated ? () => saveAndShareMutation.mutate() : undefined}
       onShare={handleShare}
+      isAuthenticated={isAuthenticated}
     />
   );
 }

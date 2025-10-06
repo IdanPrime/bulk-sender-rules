@@ -9,12 +9,16 @@ import DashboardPage from "@/pages/dashboard";
 import ScanPage from "@/pages/scan";
 import TemplateLintPage from "@/pages/template-lint";
 import ReportPage from "@/pages/report";
+import LoginPage from "@/pages/login";
+import SignupPage from "@/pages/signup";
 import NotFound from "@/pages/not-found";
 
 function Router() {
   return (
     <Switch>
       <Route path="/" component={Home} />
+      <Route path="/login" component={LoginPage} />
+      <Route path="/signup" component={SignupPage} />
       <Route path="/dashboard" component={DashboardPage} />
       <Route path="/scan" component={ScanPage} />
       <Route path="/template-lint" component={TemplateLintPage} />

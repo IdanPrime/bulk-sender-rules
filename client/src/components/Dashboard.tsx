@@ -1,25 +1,78 @@
 import { Button } from "@/components/ui/button";
-import { Plus, Loader2 } from "lucide-react";
+import { Plus, Loader2, AlertCircle } from "lucide-react";
 import DomainCard from "./DomainCard";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
+import { useAuth } from "@/hooks/use-auth";
+import { useLocation } from "wouter";
+import { queryClient, apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
+import { useState } from "react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 export default function Dashboard() {
-  const { data: domains = [], isLoading } = useQuery<any[]>({
-    queryKey: ["/api/domains"],
-    queryFn: () => fetch("/api/domains?userId=demo").then(r => r.json()),
+  const { isAuthenticated, isLoading: authLoading } = useAuth();
+  const [, setLocation] = useLocation();
+  const { toast } = useToast();
+  const [showAddDialog, setShowAddDialog] = useState(false);
+  const [newDomain, setNewDomain] = useState("");
+
+  const { data: dashboardData, isLoading } = useQuery<any>({
+    queryKey: ["/api/dashboard"],
+    enabled: isAuthenticated,
+  });
+
+  const addDomainMutation = useMutation({
+    mutationFn: async (name: string) => {
+      const res = await apiRequest("POST", "/api/domain", { name });
+      return await res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/dashboard"] });
+      setShowAddDialog(false);
+      setNewDomain("");
+      toast({
+        title: "Domain added",
+        description: "You can now scan this domain",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Failed to add domain",
+        description: error.message || "Please try again",
+        variant: "destructive",
+      });
+    },
   });
 
   const handleAddDomain = () => {
-    const domain = prompt("Enter domain name:");
-    if (domain) {
-      fetch("/api/domain", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: domain, userId: "demo" }),
-      }).then(() => window.location.reload());
+    if (newDomain.trim()) {
+      addDomainMutation.mutate(newDomain.trim());
     }
   };
+
+  if (authLoading) {
+    return (
+      <div className="max-w-7xl mx-auto px-6 py-12 flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <div className="max-w-7xl mx-auto px-6 py-12">
+        <div className="text-center py-12">
+          <AlertCircle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+          <h2 className="text-2xl font-bold mb-2">Authentication Required</h2>
+          <p className="text-muted-foreground mb-6">Please sign in to access your dashboard</p>
+          <Button onClick={() => setLocation("/login")}>Sign In</Button>
+        </div>
+      </div>
+    );
+  }
 
   if (isLoading) {
     return (
@@ -28,6 +81,8 @@ export default function Dashboard() {
       </div>
     );
   }
+
+  const domains = dashboardData?.domains || [];
 
   return (
     <div className="max-w-7xl mx-auto px-6 py-12">
@@ -38,7 +93,7 @@ export default function Dashboard() {
             Manage and monitor your domain deliverability
           </p>
         </div>
-        <Button onClick={handleAddDomain} data-testid="button-add-domain">
+        <Button onClick={() => setShowAddDialog(true)} data-testid="button-add-domain">
           <Plus className="h-4 w-4 mr-2" />
           Add Domain
         </Button>
@@ -47,7 +102,7 @@ export default function Dashboard() {
       {domains.length === 0 ? (
         <div className="text-center py-12">
           <p className="text-muted-foreground mb-4">No domains yet</p>
-          <Button onClick={handleAddDomain}>Add your first domain</Button>
+          <Button onClick={() => setShowAddDialog(true)}>Add your first domain</Button>
         </div>
       ) : (
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
@@ -55,15 +110,44 @@ export default function Dashboard() {
             <DomainCard
               key={domain.id}
               domain={domain.name}
-              lastScanDate={domain.latestScan ? formatDistanceToNow(new Date(domain.latestScan.createdAt), { addSuffix: true }) : "Never"}
-              status={domain.latestScan?.status || "WARN"}
-              criticalIssues={domain.latestScan?.criticalIssues || 0}
-              onRescan={() => console.log(`Rescan ${domain.name}`)}
-              onViewDetails={() => console.log(`View details ${domain.name}`)}
+              lastScanDate={domain.latestReport ? formatDistanceToNow(new Date(domain.latestReport.createdAt), { addSuffix: true }) : "Never"}
+              status={domain.latestReport?.scanJson?.summary?.overall || "WARN"}
+              criticalIssues={domain.latestReport?.scanJson?.summary?.criticalIssues || 0}
+              onRescan={() => setLocation(`/?domain=${domain.name}&scan=true`)}
+              onViewDetails={() => domain.latestReport && setLocation(`/report/${domain.latestReport.slug}`)}
             />
           ))}
         </div>
       )}
+
+      <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add Domain</DialogTitle>
+            <DialogDescription>Enter the domain name you want to monitor</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="domain">Domain Name</Label>
+              <Input
+                id="domain"
+                placeholder="example.com"
+                value={newDomain}
+                onChange={(e) => setNewDomain(e.target.value)}
+                data-testid="input-add-domain"
+              />
+            </div>
+            <Button 
+              onClick={handleAddDomain} 
+              className="w-full"
+              disabled={addDomainMutation.isPending || !newDomain.trim()}
+              data-testid="button-confirm-add-domain"
+            >
+              {addDomainMutation.isPending ? "Adding..." : "Add Domain"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

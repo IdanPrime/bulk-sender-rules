@@ -4,15 +4,16 @@
 A web application that helps businesses comply with Gmail/Yahoo bulk-sender rules by scanning DNS records (SPF, DKIM, DMARC, BIMI, MX), linting email templates for spam triggers, tracking deliverability metrics, and generating shareable public reports.
 
 ## Current State
-MVP implementation complete with full backend API and frontend integration. The application supports free DNS scanning without login and includes authenticated features for registered users.
+Full-featured application with authentication, persistence, and automated monitoring capabilities. Supports both anonymous DNS scanning and authenticated features for registered users including saved scans, dashboard, and daily re-scan monitoring.
 
-## Recent Changes (October 3, 2025)
-- Fixed critical bug where report generation failed due to domainId validation
-- Made domainId nullable in reports table to support free scans
-- Added proper error handling for API mutations
-- Implemented DNS scanning with SPF, DKIM, DMARC, BIMI, and MX record parsing
-- Built template linter with spam trigger detection
-- Created health tracking API for manual deliverability metrics
+## Recent Changes (October 6, 2025)
+- **Authentication & Persistence**: Added full user authentication using Passport.js with email/password
+- **Database Integration**: Migrated from in-memory storage to PostgreSQL persistence
+- **User Dashboard**: Created authenticated dashboard showing saved domains and latest scans
+- **Save & Share**: Implemented "Save & Share" functionality for authenticated users
+- **Daily Re-scans**: Added cron endpoint for automated daily domain re-scanning with status alerts
+- **Protected Routes**: Secured domain management and dashboard endpoints with authentication
+- **Navigation Updates**: Added dynamic navigation with login/signup buttons and user menu
 
 ## Project Architecture
 
@@ -57,9 +58,29 @@ MVP implementation complete with full backend API and frontend integration. The 
 - Inspired by Linear/Vercel aesthetics
 
 ## API Endpoints
-- `POST /api/scan` - Scan DNS records for a domain
-- `POST /api/report` - Generate shareable report
+
+### Authentication
+- `POST /api/auth/signup` - Create new user account
+- `POST /api/auth/login` - Login with email/password
+- `POST /api/auth/logout` - Logout current user
+- `GET /api/auth/session` - Get current session status
+
+### Scanning & Reports
+- `POST /api/scan` - Scan DNS records (supports `save: true` for authenticated users)
+- `POST /api/report` - Generate shareable report (anonymous)
 - `GET /api/report/:slug` - Retrieve public report
+- `GET /api/dashboard` - Get user's domains and latest scans (protected)
+
+### Domain Management
+- `POST /api/domain` - Add domain (protected)
+- `GET /api/domain/:id` - Get domain details
+- `GET /api/domains` - List all domains
+- `DELETE /api/domain/:id` - Delete domain (protected)
+
+### Template & Health
 - `POST /api/template-lint` - Lint email template
-- Domain CRUD: GET/POST/DELETE `/api/domains`
-- Health tracking: GET/POST `/api/health-points`
+- `POST /api/health-points` - Add health point (protected)
+- `GET /api/health-points` - Get health points
+
+### Automation
+- `POST /api/cron/rescan` - Daily re-scan endpoint (requires X-Cron-Secret header or ?key= param)

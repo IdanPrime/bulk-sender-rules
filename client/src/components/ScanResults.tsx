@@ -1,7 +1,8 @@
 import { Button } from "@/components/ui/button";
-import { Share2, FileText } from "lucide-react";
+import { Share2, FileText, Save, LogIn } from "lucide-react";
 import DNSRecordCard from "./DNSRecordCard";
 import StatusBadge from "./StatusBadge";
+import { Link } from "wouter";
 
 interface ScanResultsProps {
   domain: string;
@@ -15,7 +16,9 @@ interface ScanResultsProps {
     suggestions?: string[];
   }>;
   onGenerateReport?: () => void;
+  onSaveAndShare?: () => void;
   onShare?: () => void;
+  isAuthenticated?: boolean;
 }
 
 export default function ScanResults({
@@ -24,7 +27,9 @@ export default function ScanResults({
   criticalIssues,
   records,
   onGenerateReport,
+  onSaveAndShare,
   onShare,
+  isAuthenticated,
 }: ScanResultsProps) {
   return (
     <div className="max-w-7xl mx-auto px-6 py-12">
@@ -52,13 +57,31 @@ export default function ScanResults({
               <Share2 className="h-4 w-4 mr-2" />
               Share
             </Button>
-            <Button
-              onClick={onGenerateReport}
-              data-testid="button-generate-report"
-            >
-              <FileText className="h-4 w-4 mr-2" />
-              Generate Report
-            </Button>
+            {isAuthenticated ? (
+              <Button
+                onClick={onSaveAndShare}
+                data-testid="button-save-share"
+              >
+                <Save className="h-4 w-4 mr-2" />
+                Save & Share
+              </Button>
+            ) : (
+              <>
+                <Button
+                  onClick={onGenerateReport}
+                  data-testid="button-generate-report"
+                >
+                  <FileText className="h-4 w-4 mr-2" />
+                  Generate Report
+                </Button>
+                <Link href="/login">
+                  <Button variant="outline" data-testid="button-login-to-save">
+                    <LogIn className="h-4 w-4 mr-2" />
+                    Login to Save
+                  </Button>
+                </Link>
+              </>
+            )}
           </div>
         </div>
       </div>
