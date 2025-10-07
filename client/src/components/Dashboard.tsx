@@ -30,6 +30,7 @@ export default function Dashboard() {
     queryKey: ["/api/billing/plan"],
     enabled: isAuthenticated,
     staleTime: 5000,
+    retry: 1,
   });
 
   const addDomainMutation = useMutation({
