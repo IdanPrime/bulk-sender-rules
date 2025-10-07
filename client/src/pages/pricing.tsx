@@ -6,12 +6,21 @@ import { useAuth } from "@/hooks/use-auth";
 import { apiRequest } from "@/lib/queryClient";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
+import { useQuery } from "@tanstack/react-query";
 
 export default function PricingPage() {
   const [, setLocation] = useLocation();
   const { isAuthenticated } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
+
+  const { data: planData } = useQuery<{ plan: string }>({
+    queryKey: ["/api/billing/plan"],
+    enabled: isAuthenticated,
+    retry: 1,
+  });
+
+  const isPro = planData?.plan === "pro";
 
   const handleUpgrade = async () => {
     if (!isAuthenticated) {
@@ -38,6 +47,10 @@ export default function PricingPage() {
       });
       setIsLoading(false);
     }
+  };
+
+  const handleManageBilling = () => {
+    window.location.href = "/api/billing/portal";
   };
 
   return (
@@ -122,11 +135,11 @@ export default function PricingPage() {
               </div>
               <Button 
                 className="w-full" 
-                onClick={handleUpgrade}
+                onClick={isPro ? handleManageBilling : handleUpgrade}
                 disabled={isLoading}
-                data-testid="button-upgrade-pro"
+                data-testid={isPro ? "button-manage-billing" : "button-upgrade-pro"}
               >
-                {isLoading ? "Redirecting..." : "Upgrade to Pro"}
+                {isLoading ? "Redirecting..." : (isPro ? "Manage Billing" : "Upgrade to Pro")}
               </Button>
             </CardContent>
           </Card>

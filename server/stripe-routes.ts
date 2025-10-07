@@ -1,4 +1,5 @@
 import type { Express } from "express";
+import express from "express";
 import Stripe from "stripe";
 import { storage } from "./storage";
 import { requireAuth } from "./auth-routes";
@@ -130,6 +131,7 @@ export function registerStripeRoutes(app: Express) {
       const plan = userData.isPro === "true" ? "pro" : "free";
       console.log(`[billing.plan] User ${userData.email}: plan=${plan}, isPro=${userData.isPro}`);
       
+      res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, private");
       res.json({ plan });
     } catch (error: any) {
       console.error("[billing.plan] Error fetching plan:", error);
@@ -153,6 +155,12 @@ export function registerStripeRoutes(app: Express) {
   });
 
   app.post("/api/stripe/checkout", requireAuth, async (req, res) => {
+    const user = req.user as any;
+    if (!user || !user.id || !user.email) {
+      console.error("[checkout] User not authenticated");
+      return res.status(401).json({ error: "User not authenticated" });
+    }
+
     const sk = process.env.STRIPE_SECRET_KEY;
     const baseUrl = (process.env.NEXTAUTH_URL || process.env.REPLIT_DEV_DOMAIN || "").replace(/\/$/, "");
     
@@ -180,9 +188,13 @@ export function registerStripeRoutes(app: Express) {
       : `https://${baseUrl}`;
 
     try {
+      console.log(`[checkout] Creating session for user: ${user.email} (id: ${user.id})`);
+      
       const session = await stripeClient.checkout.sessions.create({
         mode: "subscription",
         payment_method_types: ["card"],
+        client_reference_id: user.id,
+        customer_email: user.email,
         line_items: priceId ? [{ price: priceId, quantity: 1 }] : [{
           price_data: {
             currency: "usd",
@@ -201,6 +213,7 @@ export function registerStripeRoutes(app: Express) {
         return res.status(500).json({ error: "No checkout URL returned from Stripe" });
       }
       
+      console.log(`[checkout] ✓ Session created: ${session.id}, redirect URL: ${session.url}`);
       return res.json({ url: session.url });
     } catch (e: any) {
       console.error("[checkout] Stripe error:", e?.message || "unknown");
@@ -329,6 +342,148 @@ export function registerStripeRoutes(app: Express) {
     } catch (error: any) {
       console.error("Subscription status error:", error);
       res.status(500).json({ error: "Failed to fetch subscription status" });
+    }
+  });
+
+  app.get("/api/billing/portal", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      if (!user || !user.id) {
+        return res.status(401).json({ error: "User not authenticated" });
+      }
+
+      const sk = process.env.STRIPE_SECRET_KEY;
+      if (!sk) {
+        console.error("[billing.portal] STRIPE_SECRET_KEY missing");
+        return res.status(500).json({ error: "Stripe not configured" });
+      }
+
+      const stripeClient = new Stripe(sk, { apiVersion: "2025-09-30.clover" });
+      const userData = await storage.getUser(user.id);
+      
+      if (!userData?.stripeCustomerId) {
+        console.error("[billing.portal] No Stripe customer ID for user:", user.id);
+        return res.status(400).json({ error: "No billing account found. Please subscribe first." });
+      }
+
+      const baseUrl = (process.env.NEXTAUTH_URL || process.env.REPLIT_DEV_DOMAIN || "").replace(/\/$/, "");
+      const formattedBaseUrl = baseUrl.startsWith("http://") || baseUrl.startsWith("https://") 
+        ? baseUrl 
+        : `https://${baseUrl}`;
+
+      const portalSession = await stripeClient.billingPortal.sessions.create({
+        customer: userData.stripeCustomerId,
+        return_url: `${formattedBaseUrl}/dashboard`,
+      });
+
+      console.log(`[billing.portal] ✓ Portal session created for user ${user.email}`);
+      return res.redirect(portalSession.url);
+    } catch (error: any) {
+      console.error("[billing.portal] Error:", error);
+      return res.status(500).json({ error: "Failed to create billing portal session" });
+    }
+  });
+
+  app.post("/api/stripe/webhook", express.raw({ type: "application/json" }), async (req, res) => {
+    const sig = req.headers["stripe-signature"];
+    const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+
+    if (!webhookSecret) {
+      console.error("[webhook] STRIPE_WEBHOOK_SECRET not configured");
+      return res.status(500).send("Webhook secret not configured");
+    }
+
+    if (!sig) {
+      console.error("[webhook] No signature provided");
+      return res.status(400).send("No signature");
+    }
+
+    const sk = process.env.STRIPE_SECRET_KEY;
+    if (!sk) {
+      console.error("[webhook] STRIPE_SECRET_KEY missing");
+      return res.status(500).send("Stripe not configured");
+    }
+
+    let event: Stripe.Event;
+    try {
+      const stripeClient = new Stripe(sk, { apiVersion: "2025-09-30.clover" });
+      event = stripeClient.webhooks.constructEvent(req.body, sig as string, webhookSecret);
+      console.log(`[webhook] ✓ Verified event: ${event.type}`);
+    } catch (err: any) {
+      console.error("[webhook] Signature verification failed:", err.message);
+      return res.status(400).send(`Webhook Error: ${err.message}`);
+    }
+
+    try {
+      switch (event.type) {
+        case "checkout.session.completed": {
+          const session = event.data.object as Stripe.Checkout.Session;
+          console.log(`[webhook] checkout.session.completed: ${session.id}`);
+          
+          const customerId = typeof session.customer === "string" ? session.customer : session.customer?.id;
+          const subscriptionId = typeof session.subscription === "string" ? session.subscription : session.subscription?.id;
+          const clientReferenceId = session.client_reference_id;
+          const email = session.customer_details?.email;
+
+          if (clientReferenceId) {
+            const user = await storage.getUser(clientReferenceId);
+            if (user && customerId && subscriptionId) {
+              await storage.upgradeUserToPro(user.id, customerId, subscriptionId);
+              console.log(`[webhook] ✓ User ${user.email} upgraded to Pro via client_reference_id`);
+            }
+          } else if (email) {
+            const user = await storage.getUserByEmail(email);
+            if (user && customerId && subscriptionId) {
+              await storage.upgradeUserToPro(user.id, customerId, subscriptionId);
+              console.log(`[webhook] ✓ User ${email} upgraded to Pro via email`);
+            }
+          }
+          break;
+        }
+
+        case "customer.subscription.updated": {
+          const subscription = event.data.object as Stripe.Subscription;
+          console.log(`[webhook] customer.subscription.updated: ${subscription.id}, status: ${subscription.status}`);
+          
+          const customerId = typeof subscription.customer === "string" ? subscription.customer : subscription.customer?.id;
+          if (customerId) {
+            const user = await storage.getUserByStripeCustomerId(customerId);
+            if (user) {
+              const isPro = ["active", "trialing", "past_due"].includes(subscription.status);
+              await storage.updateUserProStatus(user.id, isPro);
+              console.log(`[webhook] ✓ Updated user ${user.email} to isPro=${isPro} (status: ${subscription.status})`);
+            } else {
+              console.log(`[webhook] No user found with customer ID: ${customerId}`);
+            }
+          }
+          break;
+        }
+
+        case "customer.subscription.deleted": {
+          const subscription = event.data.object as Stripe.Subscription;
+          console.log(`[webhook] customer.subscription.deleted: ${subscription.id}`);
+          
+          const customerId = typeof subscription.customer === "string" ? subscription.customer : subscription.customer?.id;
+          if (customerId) {
+            const user = await storage.getUserByStripeCustomerId(customerId);
+            if (user) {
+              await storage.updateUserProStatus(user.id, false);
+              console.log(`[webhook] ✓ Downgraded user ${user.email} to free (subscription deleted)`);
+            } else {
+              console.log(`[webhook] No user found with customer ID: ${customerId}`);
+            }
+          }
+          break;
+        }
+
+        default:
+          console.log(`[webhook] Unhandled event type: ${event.type}`);
+      }
+
+      res.json({ received: true });
+    } catch (error: any) {
+      console.error("[webhook] Error processing event:", error);
+      res.status(500).send("Webhook processing failed");
     }
   });
 }
