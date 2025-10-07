@@ -32,7 +32,7 @@ export function registerStripeRoutes(app: Express) {
     });
   });
 
-  app.post("/api/stripe/checkout", async (req, res) => {
+  app.post("/api/stripe/checkout", requireAuth, async (req, res) => {
     const sk = process.env.STRIPE_SECRET_KEY;
     const baseUrl = (process.env.NEXTAUTH_URL || process.env.REPLIT_DEV_DOMAIN || "").replace(/\/$/, "");
     
