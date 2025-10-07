@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { Plus, Loader2, AlertCircle } from "lucide-react";
+import { Plus, Loader2, AlertCircle, Crown } from "lucide-react";
 import DomainCard from "./DomainCard";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { formatDistanceToNow } from "date-fns";
@@ -11,9 +11,11 @@ import { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
 
 export default function Dashboard() {
-  const { isAuthenticated, isLoading: authLoading } = useAuth();
+  const { user, isAuthenticated, isLoading: authLoading } = useAuth();
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [showAddDialog, setShowAddDialog] = useState(false);
@@ -83,6 +85,7 @@ export default function Dashboard() {
   }
 
   const domains = dashboardData?.domains || [];
+  const isPro = user?.isPro === "true";
 
   return (
     <div className="max-w-7xl mx-auto px-6 py-12">
@@ -98,6 +101,45 @@ export default function Dashboard() {
           Add Domain
         </Button>
       </div>
+
+      <Card className="mb-8" data-testid="card-subscription-status">
+        <CardContent className="flex items-center justify-between p-6">
+          <div className="flex items-center gap-3">
+            {isPro ? (
+              <>
+                <Crown className="h-6 w-6 text-primary" />
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-semibold">Pro Plan</h3>
+                    <Badge variant="default" data-testid="badge-pro">Active</Badge>
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    Unlimited scans, email alerts, and team sharing
+                  </p>
+                </div>
+              </>
+            ) : (
+              <>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-semibold">Free Plan</h3>
+                    <Badge variant="secondary" data-testid="badge-free">Active</Badge>
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    1 scan per day, basic reports
+                  </p>
+                </div>
+              </>
+            )}
+          </div>
+          {!isPro && (
+            <Button onClick={() => setLocation("/pricing")} data-testid="button-upgrade-dashboard">
+              <Crown className="h-4 w-4 mr-2" />
+              Upgrade to Pro
+            </Button>
+          )}
+        </CardContent>
+      </Card>
 
       {domains.length === 0 ? (
         <div className="text-center py-12">

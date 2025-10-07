@@ -6,10 +6,12 @@ import { lintTemplate } from "./lib/template-linter";
 import { insertDomainSchema, insertReportSchema, insertHealthPointSchema, insertTemplateCheckSchema } from "@shared/schema";
 import { randomBytes } from "crypto";
 import { registerAuthRoutes, requireAuth } from "./auth-routes";
+import { registerStripeRoutes } from "./stripe-routes";
 import { runDailyRescans } from "./lib/cron";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   registerAuthRoutes(app);
+  registerStripeRoutes(app);
 
   app.post("/api/cron/rescan", async (req, res) => {
     try {

@@ -102,7 +102,13 @@ export function registerAuthRoutes(app: Express) {
       const user = req.user as any;
       res.json({ 
         authenticated: true, 
-        user: { id: user.id, email: user.email } 
+        user: { 
+          id: user.id, 
+          email: user.email,
+          stripeCustomerId: user.stripeCustomerId,
+          stripeSubscriptionId: user.stripeSubscriptionId,
+          isPro: user.isPro
+        } 
       });
     } else {
       res.json({ authenticated: false, user: null });

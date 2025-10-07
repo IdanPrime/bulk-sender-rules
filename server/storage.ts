@@ -16,6 +16,8 @@ export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
   getUserByEmail(email: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
+  updateUserStripeInfo(userId: string, stripeCustomerId: string, stripeSubscriptionId: string): Promise<User>;
+  updateUserProStatus(userId: string, isPro: boolean): Promise<User>;
 
   getDomain(id: string): Promise<Domain | undefined>;
   getDomainsByUserId(userId: string): Promise<Domain[]>;
@@ -64,9 +66,29 @@ export class MemStorage implements IStorage {
       id,
       email: insertUser.email,
       passwordHash: insertUser.passwordHash ?? null,
+      stripeCustomerId: null,
+      stripeSubscriptionId: null,
+      isPro: "false",
       createdAt: new Date(),
     };
     this.users.set(id, user);
+    return user;
+  }
+
+  async updateUserStripeInfo(userId: string, stripeCustomerId: string, stripeSubscriptionId: string): Promise<User> {
+    const user = this.users.get(userId);
+    if (!user) throw new Error("User not found");
+    user.stripeCustomerId = stripeCustomerId;
+    user.stripeSubscriptionId = stripeSubscriptionId;
+    this.users.set(userId, user);
+    return user;
+  }
+
+  async updateUserProStatus(userId: string, isPro: boolean): Promise<User> {
+    const user = this.users.get(userId);
+    if (!user) throw new Error("User not found");
+    user.isPro = isPro ? "true" : "false";
+    this.users.set(userId, user);
     return user;
   }
 

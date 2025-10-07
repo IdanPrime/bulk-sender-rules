@@ -11,6 +11,8 @@ import TemplateLintPage from "@/pages/template-lint";
 import ReportPage from "@/pages/report";
 import LoginPage from "@/pages/login";
 import SignupPage from "@/pages/signup";
+import PricingPage from "@/pages/pricing";
+import SubscribePage from "@/pages/subscribe";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -19,6 +21,8 @@ function Router() {
       <Route path="/" component={Home} />
       <Route path="/login" component={LoginPage} />
       <Route path="/signup" component={SignupPage} />
+      <Route path="/pricing" component={PricingPage} />
+      <Route path="/subscribe" component={SubscribePage} />
       <Route path="/dashboard" component={DashboardPage} />
       <Route path="/scan" component={ScanPage} />
       <Route path="/template-lint" component={TemplateLintPage} />

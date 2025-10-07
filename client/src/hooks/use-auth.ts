@@ -4,6 +4,9 @@ import { queryClient, apiRequest } from "@/lib/queryClient";
 export interface User {
   id: string;
   email: string;
+  stripeCustomerId?: string | null;
+  stripeSubscriptionId?: string | null;
+  isPro?: string;
 }
 
 export interface AuthSession {
