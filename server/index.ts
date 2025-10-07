@@ -7,7 +7,13 @@ import { passport } from "./auth";
 import { pool } from "./db";
 
 const app = express();
-app.use(express.json());
+app.use((req, res, next) => {
+  if (req.path === "/api/stripe/webhook") {
+    next();
+  } else {
+    express.json()(req, res, next);
+  }
+});
 app.use(express.urlencoded({ extended: false }));
 
 const PgStore = connectPgSimple(session);
