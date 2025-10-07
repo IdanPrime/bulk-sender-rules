@@ -3,17 +3,41 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Check } from "lucide-react";
 import { useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
+import { apiRequest } from "@/lib/queryClient";
+import { useState } from "react";
+import { useToast } from "@/hooks/use-toast";
 
 export default function PricingPage() {
   const [, setLocation] = useLocation();
   const { isAuthenticated } = useAuth();
+  const [isLoading, setIsLoading] = useState(false);
+  const { toast } = useToast();
 
-  const handleUpgrade = () => {
+  const handleUpgrade = async () => {
     if (!isAuthenticated) {
       setLocation("/login");
       return;
     }
-    setLocation("/subscribe");
+
+    setIsLoading(true);
+    try {
+      const res = await apiRequest("POST", "/api/stripe/checkout", {});
+      const response = await res.json() as { url: string };
+
+      if (response.url) {
+        window.location.href = response.url;
+      } else {
+        throw new Error("No checkout URL returned");
+      }
+    } catch (error: any) {
+      console.error("Checkout error:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to start checkout. Please try again.",
+        variant: "destructive",
+      });
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -99,9 +123,10 @@ export default function PricingPage() {
               <Button 
                 className="w-full" 
                 onClick={handleUpgrade}
+                disabled={isLoading}
                 data-testid="button-upgrade-pro"
               >
-                Upgrade to Pro
+                {isLoading ? "Redirecting..." : "Upgrade to Pro"}
               </Button>
             </CardContent>
           </Card>
