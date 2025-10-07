@@ -17,6 +17,77 @@ if (stripeSecretKey) {
 }
 
 export function registerStripeRoutes(app: Express) {
+  app.get("/api/billing/verify", async (req, res) => {
+    const sessionId = req.query.session_id as string;
+    if (!sessionId) {
+      return res.redirect("/pricing?error=no_session");
+    }
+
+    const sk = process.env.STRIPE_SECRET_KEY;
+    const baseUrl = (process.env.NEXTAUTH_URL || process.env.REPLIT_DEV_DOMAIN || "").replace(/\/$/, "");
+    const formattedBaseUrl = baseUrl.startsWith("https://") ? baseUrl : `https://${baseUrl}`;
+
+    if (!sk) {
+      console.error("[billing.verify] STRIPE_SECRET_KEY missing");
+      return res.redirect(`${formattedBaseUrl}/pricing?error=no_stripe_key`);
+    }
+
+    let stripeClient: Stripe;
+    try {
+      stripeClient = new Stripe(sk, { apiVersion: "2025-09-30.clover" });
+    } catch (e: any) {
+      console.error("[billing.verify] Stripe init failed:", e?.message);
+      return res.redirect(`${formattedBaseUrl}/pricing?error=stripe_init_failed`);
+    }
+
+    try {
+      const session = await stripeClient.checkout.sessions.retrieve(sessionId, {
+        expand: ["customer", "subscription"],
+      });
+
+      const email =
+        session.customer_details?.email ||
+        (typeof session.customer === "object" && session.customer && "email" in session.customer ? session.customer.email : undefined);
+
+      if (!email) {
+        console.error("[billing.verify] No email found in session");
+        return res.redirect(`${formattedBaseUrl}/pricing?error=no_email_on_session`);
+      }
+
+      const stripeCustomerId = typeof session.customer === "string" ? session.customer : (session.customer?.id || "");
+      const stripeSubscriptionId = typeof session.subscription === "string" ? session.subscription : (session.subscription?.id || "");
+
+      const user = await storage.getUserByEmail(email);
+      if (user && stripeCustomerId && stripeSubscriptionId) {
+        await storage.updateUserStripeInfo(user.id, stripeCustomerId, stripeSubscriptionId);
+        await storage.updateUserProStatus(user.id, true);
+      }
+
+      res.cookie("plan", "pro", { path: "/", httpOnly: false, maxAge: 60 * 60 });
+      return res.redirect(`${formattedBaseUrl}/dashboard?upgraded=true`);
+    } catch (e: any) {
+      console.error("[billing.verify]", e?.message || e);
+      return res.redirect(`${formattedBaseUrl}/pricing?error=verify_failed`);
+    }
+  });
+
+  app.get("/api/billing/plan", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      if (!user || !user.id) {
+        return res.status(401).json({ error: "User not authenticated" });
+      }
+
+      const userData = await storage.getUser(user.id);
+      const plan = userData?.isPro === "true" ? "pro" : "free";
+      
+      res.json({ plan });
+    } catch (error: any) {
+      console.error("[billing.plan]", error);
+      res.json({ plan: "free" });
+    }
+  });
+
   app.get("/api/stripe/diag", async (req, res) => {
     const ok = (v?: string) => (v && v.length > 8 ? "present" : "missing");
     const baseUrl = process.env.NEXTAUTH_URL || process.env.REPLIT_DEV_DOMAIN || "";
@@ -70,7 +141,7 @@ export function registerStripeRoutes(app: Express) {
           },
           quantity: 1
         }],
-        success_url: `${formattedBaseUrl}/dashboard?upgraded=true`,
+        success_url: `${formattedBaseUrl}/api/billing/verify?session_id={CHECKOUT_SESSION_ID}`,
         cancel_url: `${formattedBaseUrl}/pricing?canceled=true`,
       });
       
