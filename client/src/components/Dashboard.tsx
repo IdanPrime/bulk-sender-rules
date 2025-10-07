@@ -7,7 +7,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useLocation } from "wouter";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -20,6 +20,18 @@ export default function Dashboard() {
   const { toast } = useToast();
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [newDomain, setNewDomain] = useState("");
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("upgraded") === "true") {
+      toast({
+        title: "Welcome to Pro!",
+        description: "Your account has been upgraded successfully.",
+      });
+      window.history.replaceState({}, "", "/dashboard");
+      queryClient.invalidateQueries({ queryKey: ["/api/billing/plan"] });
+    }
+  }, [toast]);
 
   const { data: dashboardData, isLoading } = useQuery<any>({
     queryKey: ["/api/dashboard"],

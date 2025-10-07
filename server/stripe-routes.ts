@@ -76,13 +76,13 @@ export function registerStripeRoutes(app: Express) {
       }
 
       const user = await storage.getUserByEmail(email);
-      if (user) {
-        await storage.updateUserStripeInfo(user.id, stripeCustomerId, stripeSubscriptionId);
-        await storage.updateUserProStatus(user.id, true);
-      } else {
+      if (!user) {
         console.error("[billing.verify] User not found for email:", email);
         return res.redirect(`${formattedBaseUrl}/pricing?error=user_not_found`);
       }
+
+      const updatedUser = await storage.upgradeUserToPro(user.id, stripeCustomerId, stripeSubscriptionId);
+      console.log(`[billing.verify] ✓ User ${email} upgraded to Pro (isPro=${updatedUser.isPro})`);
 
       return res.redirect(`${formattedBaseUrl}/dashboard?upgraded=true`);
     } catch (e: any) {
@@ -105,6 +105,7 @@ export function registerStripeRoutes(app: Express) {
       }
 
       const plan = userData.isPro === "true" ? "pro" : "free";
+      console.log(`[billing.plan] User ${userData.email}: plan=${plan}, isPro=${userData.isPro}`);
       
       res.json({ plan });
     } catch (error: any) {

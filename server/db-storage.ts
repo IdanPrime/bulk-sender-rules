@@ -53,6 +53,19 @@ export class DbStorage implements IStorage {
     return result[0];
   }
 
+  async upgradeUserToPro(userId: string, stripeCustomerId: string, stripeSubscriptionId: string): Promise<User> {
+    const result = await db
+      .update(users)
+      .set({ 
+        stripeCustomerId, 
+        stripeSubscriptionId,
+        isPro: "true"
+      })
+      .where(eq(users.id, userId))
+      .returning();
+    return result[0];
+  }
+
   async getDomain(id: string): Promise<Domain | undefined> {
     const result = await db.select().from(domains).where(eq(domains.id, id));
     return result[0];
