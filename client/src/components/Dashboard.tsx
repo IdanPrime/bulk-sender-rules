@@ -26,6 +26,12 @@ export default function Dashboard() {
     enabled: isAuthenticated,
   });
 
+  const { data: planData } = useQuery<{ plan: string }>({
+    queryKey: ["/api/billing/plan"],
+    enabled: isAuthenticated,
+    staleTime: 5000,
+  });
+
   const addDomainMutation = useMutation({
     mutationFn: async (name: string) => {
       const res = await apiRequest("POST", "/api/domain", { name });
@@ -85,7 +91,7 @@ export default function Dashboard() {
   }
 
   const domains = dashboardData?.domains || [];
-  const isPro = user?.isPro === "true";
+  const isPro = user?.isPro === "true" || planData?.plan === "pro";
 
   return (
     <div className="max-w-7xl mx-auto px-6 py-12">
