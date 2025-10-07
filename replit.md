@@ -6,7 +6,16 @@ A web application that helps businesses comply with Gmail/Yahoo bulk-sender rule
 ## Current State
 Full-featured application with authentication, persistence, and automated monitoring capabilities. Supports both anonymous DNS scanning and authenticated features for registered users including saved scans, dashboard, and daily re-scan monitoring.
 
-## Recent Changes (October 6, 2025)
+## Recent Changes (October 7, 2025)
+- **Stripe Subscription Integration**: Complete Pro plan upgrade flow with Stripe checkout
+- **Webhook Event Handling**: Automated subscription status updates via Stripe webhooks
+- **Billing Portal**: Pro users can manage subscriptions through Stripe customer portal
+- **Atomic Database Upgrades**: Single-operation user upgrade with stripeCustomerId, stripeSubscriptionId, and isPro
+- **Security Enhancements**: Webhook signature verification, session cookies with SameSite=None and Secure flags
+- **UI Updates**: Pricing page shows "Manage Billing" button for Pro users
+- **Cache Prevention**: Added Cache-Control headers to prevent stale plan data
+
+## Previous Changes (October 6, 2025)
 - **Authentication & Persistence**: Added full user authentication using Passport.js with email/password
 - **Database Integration**: Migrated from in-memory storage to PostgreSQL persistence
 - **User Dashboard**: Created authenticated dashboard showing saved domains and latest scans
@@ -18,7 +27,7 @@ Full-featured application with authentication, persistence, and automated monito
 ## Project Architecture
 
 ### Database Schema (PostgreSQL)
-- `users`: User accounts
+- `users`: User accounts (includes stripeCustomerId, stripeSubscriptionId, isPro fields)
 - `domains`: Registered domains for tracking
 - `reports`: Scan reports with shareable slugs (domainId is optional for free scans)
 - `health_points`: Manual deliverability metrics
@@ -84,3 +93,10 @@ Full-featured application with authentication, persistence, and automated monito
 
 ### Automation
 - `POST /api/cron/rescan` - Daily re-scan endpoint (requires X-Cron-Secret header or ?key= param)
+
+### Stripe Billing (Protected)
+- `POST /api/stripe/checkout` - Create Stripe checkout session for Pro upgrade (protected)
+- `GET /api/billing/verify?session_id=` - Verify completed payment and upgrade user
+- `POST /api/stripe/webhook` - Handle Stripe webhook events (public, signature verified)
+- `GET /api/billing/plan` - Get current user plan status (protected)
+- `GET /api/billing/portal` - Redirect to Stripe customer portal (protected, Pro only)
