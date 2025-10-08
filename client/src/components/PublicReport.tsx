@@ -1,10 +1,15 @@
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Printer, Share2 } from "lucide-react";
+import { Printer, Share2, Download } from "lucide-react";
 import StatusBadge from "./StatusBadge";
 import DNSRecordCard from "./DNSRecordCard";
+import { useAuth } from "@/hooks/use-auth";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 
 interface PublicReportProps {
+  slug: string;
   domain: string;
   scanDate: string;
   overallStatus: "PASS" | "WARN" | "FAIL";
@@ -18,19 +23,73 @@ interface PublicReportProps {
 }
 
 export default function PublicReport({
+  slug,
   domain,
   scanDate,
   overallStatus,
   records,
 }: PublicReportProps) {
+  const { isAuthenticated, user } = useAuth();
+  const { toast } = useToast();
+
+  const { data: planData } = useQuery<{ plan: string; features: Record<string, boolean> }>({
+    queryKey: ["/api/billing/plan"],
+    enabled: isAuthenticated,
+  });
+
+  const downloadPdfMutation = useMutation({
+    mutationFn: async (teamId?: string) => {
+      const res = await apiRequest("POST", `/api/reports/${slug}/export`, {
+        teamId: teamId || undefined,
+      });
+      
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || "Failed to generate PDF");
+      }
+
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${domain}-deliverability-report.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    },
+    onSuccess: () => {
+      toast({
+        title: "PDF Downloaded",
+        description: "Your deliverability report has been downloaded successfully.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Download Failed",
+        description: error.message || "Unable to download PDF. Please try again.",
+        variant: "destructive",
+      });
+    },
+  });
+
   const handlePrint = () => {
     window.print();
   };
 
   const handleShare = () => {
     navigator.clipboard.writeText(window.location.href);
-    console.log("Link copied to clipboard");
+    toast({
+      title: "Link Copied",
+      description: "Report link has been copied to your clipboard.",
+    });
   };
+
+  const handleDownloadPdf = () => {
+    downloadPdfMutation.mutate(undefined);
+  };
+
+  const canDownloadPdf = isAuthenticated && planData?.features?.pdf === true;
 
   return (
     <div className="max-w-5xl mx-auto px-6 py-12">
@@ -49,6 +108,17 @@ export default function PublicReport({
             <Button variant="outline" size="icon" onClick={handleShare} data-testid="button-share-report">
               <Share2 className="h-4 w-4" />
             </Button>
+            {canDownloadPdf && (
+              <Button 
+                variant="outline" 
+                size="icon" 
+                onClick={handleDownloadPdf}
+                disabled={downloadPdfMutation.isPending}
+                data-testid="button-download-pdf"
+              >
+                <Download className="h-4 w-4" />
+              </Button>
+            )}
             <Button variant="outline" size="icon" onClick={handlePrint} data-testid="button-print-report">
               <Printer className="h-4 w-4" />
             </Button>
