@@ -9,10 +9,18 @@ import {
   type InsertHealthPoint,
   type TemplateCheck,
   type InsertTemplateCheck,
-  type Scan,
-  type InsertScan,
+  type ScanRun,
+  type InsertScanRun,
+  type ScanRecord,
+  type InsertScanRecord,
+  type ScanDiff,
+  type InsertScanDiff,
   type Alert,
   type InsertAlert,
+  type AlertPref,
+  type InsertAlertPref,
+  type EmailLog,
+  type InsertEmailLog,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 
@@ -30,6 +38,8 @@ export interface IStorage {
   getDomainByName(userId: string, name: string): Promise<Domain | undefined>;
   createDomain(domain: InsertDomain): Promise<Domain>;
   deleteDomain(id: string): Promise<void>;
+  updateDomainMonitoring(domainId: string, enabled: boolean): Promise<Domain>;
+  getMonitoredDomains(): Promise<Domain[]>;
 
   getReport(id: string): Promise<Report | undefined>;
   getReportBySlug(slug: string): Promise<Report | undefined>;
@@ -42,16 +52,27 @@ export interface IStorage {
   getTemplateChecksByUserId(userId: string): Promise<TemplateCheck[]>;
   createTemplateCheck(templateCheck: InsertTemplateCheck): Promise<TemplateCheck>;
 
-  getScansByDomainId(domainId: string): Promise<Scan[]>;
-  getLatestScanByDomainId(domainId: string): Promise<Scan | undefined>;
-  createScan(scan: InsertScan): Promise<Scan>;
+  getScanRunsByDomainId(domainId: string, limit?: number): Promise<ScanRun[]>;
+  getLatestScanRunByDomainId(domainId: string): Promise<ScanRun | undefined>;
+  getScanRunByDomainIdAndDate(domainId: string, date: string): Promise<ScanRun | undefined>;
+  createScanRun(scanRun: InsertScanRun): Promise<ScanRun>;
+  updateScanRun(id: string, data: Partial<InsertScanRun>): Promise<ScanRun>;
+
+  getScanRecordsByRunId(runId: string): Promise<ScanRecord[]>;
+  createScanRecord(scanRecord: InsertScanRecord): Promise<ScanRecord>;
+
+  getLatestScanDiffByDomainId(domainId: string): Promise<ScanDiff | undefined>;
+  createScanDiff(scanDiff: InsertScanDiff): Promise<ScanDiff>;
 
   getAlertsByDomainId(domainId: string): Promise<Alert[]>;
   getAlertsByUserId(userId: string): Promise<Alert[]>;
   createAlert(alert: InsertAlert): Promise<Alert>;
 
-  updateDomainMonitoring(domainId: string, enabled: boolean): Promise<Domain>;
-  getMonitoredDomains(): Promise<Domain[]>;
+  getAlertPref(userId: string): Promise<AlertPref | undefined>;
+  upsertAlertPref(alertPref: InsertAlertPref): Promise<AlertPref>;
+
+  createEmailLog(emailLog: InsertEmailLog): Promise<EmailLog>;
+  getEmailLogsByUserId(userId: string, type?: string): Promise<EmailLog[]>;
 }
 
 export class MemStorage implements IStorage {
@@ -60,8 +81,12 @@ export class MemStorage implements IStorage {
   private reports: Map<string, Report>;
   private healthPoints: Map<string, HealthPoint>;
   private templateChecks: Map<string, TemplateCheck>;
-  private scans: Map<string, Scan>;
+  private scanRuns: Map<string, ScanRun>;
+  private scanRecords: Map<string, ScanRecord>;
+  private scanDiffs: Map<string, ScanDiff>;
   private alerts: Map<string, Alert>;
+  private alertPrefs: Map<string, AlertPref>;
+  private emailLogs: Map<string, EmailLog>;
 
   constructor() {
     this.users = new Map();
@@ -69,8 +94,12 @@ export class MemStorage implements IStorage {
     this.reports = new Map();
     this.healthPoints = new Map();
     this.templateChecks = new Map();
-    this.scans = new Map();
+    this.scanRuns = new Map();
+    this.scanRecords = new Map();
+    this.scanDiffs = new Map();
     this.alerts = new Map();
+    this.alertPrefs = new Map();
+    this.emailLogs = new Map();
   }
 
   async getUser(id: string): Promise<User | undefined> {
@@ -227,55 +256,68 @@ export class MemStorage implements IStorage {
     return templateCheck;
   }
 
-  async getScansByDomainId(domainId: string): Promise<Scan[]> {
-    return Array.from(this.scans.values())
-      .filter((scan) => scan.domainId === domainId)
-      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  async getScanRunsByDomainId(): Promise<ScanRun[]> {
+    throw new Error("MemStorage: Not implemented - use DbStorage");
   }
 
-  async getLatestScanByDomainId(domainId: string): Promise<Scan | undefined> {
-    const scans = await this.getScansByDomainId(domainId);
-    return scans[0];
+  async getLatestScanRunByDomainId(): Promise<ScanRun | undefined> {
+    throw new Error("MemStorage: Not implemented - use DbStorage");
   }
 
-  async createScan(insertScan: InsertScan): Promise<Scan> {
-    const id = randomUUID();
-    const scan: Scan = {
-      id,
-      domainId: insertScan.domainId,
-      result: insertScan.result,
-      createdAt: new Date(),
-    };
-    this.scans.set(id, scan);
-    return scan;
+  async getScanRunByDomainIdAndDate(): Promise<ScanRun | undefined> {
+    throw new Error("MemStorage: Not implemented - use DbStorage");
   }
 
-  async getAlertsByDomainId(domainId: string): Promise<Alert[]> {
-    return Array.from(this.alerts.values())
-      .filter((alert) => alert.domainId === domainId)
-      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  async createScanRun(): Promise<ScanRun> {
+    throw new Error("MemStorage: Not implemented - use DbStorage");
   }
 
-  async getAlertsByUserId(userId: string): Promise<Alert[]> {
-    const userDomains = await this.getDomainsByUserId(userId);
-    const domainIds = userDomains.map(d => d.id);
-    return Array.from(this.alerts.values())
-      .filter((alert) => domainIds.includes(alert.domainId))
-      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  async updateScanRun(): Promise<ScanRun> {
+    throw new Error("MemStorage: Not implemented - use DbStorage");
   }
 
-  async createAlert(insertAlert: InsertAlert): Promise<Alert> {
-    const id = randomUUID();
-    const alert: Alert = {
-      id,
-      domainId: insertAlert.domainId,
-      recordType: insertAlert.recordType,
-      oldValue: insertAlert.oldValue ?? null,
-      newValue: insertAlert.newValue ?? null,
-      createdAt: new Date(),
-    };
-    this.alerts.set(id, alert);
-    return alert;
+  async getScanRecordsByRunId(): Promise<ScanRecord[]> {
+    throw new Error("MemStorage: Not implemented - use DbStorage");
+  }
+
+  async createScanRecord(): Promise<ScanRecord> {
+    throw new Error("MemStorage: Not implemented - use DbStorage");
+  }
+
+  async getLatestScanDiffByDomainId(): Promise<ScanDiff | undefined> {
+    throw new Error("MemStorage: Not implemented - use DbStorage");
+  }
+
+  async createScanDiff(): Promise<ScanDiff> {
+    throw new Error("MemStorage: Not implemented - use DbStorage");
+  }
+
+  async getAlertsByDomainId(): Promise<Alert[]> {
+    throw new Error("MemStorage: Not implemented - use DbStorage");
+  }
+
+  async getAlertsByUserId(): Promise<Alert[]> {
+    throw new Error("MemStorage: Not implemented - use DbStorage");
+  }
+
+  async createAlert(): Promise<Alert> {
+    throw new Error("MemStorage: Not implemented - use DbStorage");
+  }
+
+  async getAlertPref(): Promise<AlertPref | undefined> {
+    throw new Error("MemStorage: Not implemented - use DbStorage");
+  }
+
+  async upsertAlertPref(): Promise<AlertPref> {
+    throw new Error("MemStorage: Not implemented - use DbStorage");
+  }
+
+  async createEmailLog(): Promise<EmailLog> {
+    throw new Error("MemStorage: Not implemented - use DbStorage");
+  }
+
+  async getEmailLogsByUserId(): Promise<EmailLog[]> {
+    throw new Error("MemStorage: Not implemented - use DbStorage");
   }
 
   async updateDomainMonitoring(domainId: string, enabled: boolean): Promise<Domain> {
@@ -288,7 +330,7 @@ export class MemStorage implements IStorage {
 
   async getMonitoredDomains(): Promise<Domain[]> {
     return Array.from(this.domains.values()).filter((domain) => {
-      if (domain.monitoringEnabled !== "true") return false;
+      if (domain.monitoringEnabled !== "true" || !domain.userId) return false;
       const user = this.users.get(domain.userId);
       return user?.isPro === "true";
     });

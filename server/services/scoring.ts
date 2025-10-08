@@ -82,10 +82,10 @@ export function calculateDeliverabilityScore(scan: DNSScanResult): { score: numb
   if (scan.mx.status === "FAIL") failCount += 1;
 
   breakdown.warnings.count = warningCount;
-  breakdown.warnings.penalty = Math.min(warningCount * 5, 0);
+  breakdown.warnings.penalty = warningCount * 5;
   
   breakdown.fails.count = failCount;
-  breakdown.fails.penalty = Math.min(failCount * 10, 0);
+  breakdown.fails.penalty = failCount * 10;
 
   const rawScore =
     breakdown.spf.pass +

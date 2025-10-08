@@ -1,4 +1,4 @@
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, sql } from "drizzle-orm";
 import { db } from "./db";
 import {
   users,
@@ -6,8 +6,12 @@ import {
   reports,
   healthPoints,
   templateChecks,
-  scans,
+  scanRuns,
+  scanRecords,
+  scanDiffs,
   alerts,
+  alertPrefs,
+  emailLog,
   type User,
   type InsertUser,
   type Domain,
@@ -18,10 +22,18 @@ import {
   type InsertHealthPoint,
   type TemplateCheck,
   type InsertTemplateCheck,
-  type Scan,
-  type InsertScan,
+  type ScanRun,
+  type InsertScanRun,
+  type ScanRecord,
+  type InsertScanRecord,
+  type ScanDiff,
+  type InsertScanDiff,
   type Alert,
   type InsertAlert,
+  type AlertPref,
+  type InsertAlertPref,
+  type EmailLog,
+  type InsertEmailLog,
 } from "@shared/schema";
 import type { IStorage } from "./storage";
 
@@ -152,26 +164,77 @@ export class DbStorage implements IStorage {
     return result[0];
   }
 
-  async getScansByDomainId(domainId: string): Promise<Scan[]> {
-    return await db
+  async getScanRunsByDomainId(domainId: string, limit?: number): Promise<ScanRun[]> {
+    const query = db
       .select()
-      .from(scans)
-      .where(eq(scans.domainId, domainId))
-      .orderBy(desc(scans.createdAt));
+      .from(scanRuns)
+      .where(eq(scanRuns.domainId, domainId))
+      .orderBy(desc(scanRuns.createdAt));
+    
+    return limit ? await query.limit(limit) : await query;
   }
 
-  async getLatestScanByDomainId(domainId: string): Promise<Scan | undefined> {
+  async getLatestScanRunByDomainId(domainId: string): Promise<ScanRun | undefined> {
     const result = await db
       .select()
-      .from(scans)
-      .where(eq(scans.domainId, domainId))
-      .orderBy(desc(scans.createdAt))
+      .from(scanRuns)
+      .where(eq(scanRuns.domainId, domainId))
+      .orderBy(desc(scanRuns.createdAt))
       .limit(1);
     return result[0];
   }
 
-  async createScan(scan: InsertScan): Promise<Scan> {
-    const result = await db.insert(scans).values(scan).returning();
+  async getScanRunByDomainIdAndDate(domainId: string, date: string): Promise<ScanRun | undefined> {
+    const result = await db
+      .select()
+      .from(scanRuns)
+      .where(and(
+        eq(scanRuns.domainId, domainId),
+        sql`DATE(${scanRuns.startedAt}) = ${date}`
+      ))
+      .limit(1);
+    return result[0];
+  }
+
+  async createScanRun(scanRun: InsertScanRun): Promise<ScanRun> {
+    const result = await db.insert(scanRuns).values(scanRun).returning();
+    return result[0];
+  }
+
+  async updateScanRun(id: string, data: Partial<InsertScanRun>): Promise<ScanRun> {
+    const result = await db
+      .update(scanRuns)
+      .set(data)
+      .where(eq(scanRuns.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async getScanRecordsByRunId(runId: string): Promise<ScanRecord[]> {
+    return await db
+      .select()
+      .from(scanRecords)
+      .where(eq(scanRecords.runId, runId));
+  }
+
+  async createScanRecord(scanRecord: InsertScanRecord): Promise<ScanRecord> {
+    const result = await db.insert(scanRecords).values(scanRecord).returning();
+    return result[0];
+  }
+
+  async getLatestScanDiffByDomainId(domainId: string): Promise<ScanDiff | undefined> {
+    const result = await db
+      .select()
+      .from(scanDiffs)
+      .innerJoin(scanRuns, eq(scanDiffs.runId, scanRuns.id))
+      .where(eq(scanRuns.domainId, domainId))
+      .orderBy(desc(scanRuns.createdAt))
+      .limit(1);
+    return result[0]?.scan_diffs;
+  }
+
+  async createScanDiff(scanDiff: InsertScanDiff): Promise<ScanDiff> {
+    const result = await db.insert(scanDiffs).values(scanDiff).returning();
     return result[0];
   }
 
@@ -180,29 +243,62 @@ export class DbStorage implements IStorage {
       .select()
       .from(alerts)
       .where(eq(alerts.domainId, domainId))
-      .orderBy(desc(alerts.createdAt));
+      .orderBy(desc(alerts.sentAt));
   }
 
   async getAlertsByUserId(userId: string): Promise<Alert[]> {
     const result = await db
-      .select({
-        id: alerts.id,
-        domainId: alerts.domainId,
-        recordType: alerts.recordType,
-        oldValue: alerts.oldValue,
-        newValue: alerts.newValue,
-        createdAt: alerts.createdAt,
-      })
+      .select()
       .from(alerts)
       .innerJoin(domains, eq(alerts.domainId, domains.id))
       .where(eq(domains.userId, userId))
-      .orderBy(desc(alerts.createdAt));
-    return result;
+      .orderBy(desc(alerts.sentAt));
+    return result.map(r => r.alerts);
   }
 
   async createAlert(alert: InsertAlert): Promise<Alert> {
     const result = await db.insert(alerts).values(alert).returning();
     return result[0];
+  }
+
+  async getAlertPref(userId: string): Promise<AlertPref | undefined> {
+    const result = await db
+      .select()
+      .from(alertPrefs)
+      .where(eq(alertPrefs.userId, userId));
+    return result[0];
+  }
+
+  async upsertAlertPref(alertPref: InsertAlertPref): Promise<AlertPref> {
+    const result = await db
+      .insert(alertPrefs)
+      .values(alertPref)
+      .onConflictDoUpdate({
+        target: alertPrefs.userId,
+        set: alertPref,
+      })
+      .returning();
+    return result[0];
+  }
+
+  async createEmailLog(log: InsertEmailLog): Promise<EmailLog> {
+    const result = await db.insert(emailLog).values(log).returning();
+    return result[0];
+  }
+
+  async getEmailLogsByUserId(userId: string, emailType?: string): Promise<EmailLog[]> {
+    if (emailType) {
+      return await db
+        .select()
+        .from(emailLog)
+        .where(and(eq(emailLog.userId, userId), eq(emailLog.type, emailType)))
+        .orderBy(desc(emailLog.sentAt));
+    }
+    return await db
+      .select()
+      .from(emailLog)
+      .where(eq(emailLog.userId, userId))
+      .orderBy(desc(emailLog.sentAt));
   }
 
   async updateDomainMonitoring(domainId: string, enabled: boolean): Promise<Domain> {

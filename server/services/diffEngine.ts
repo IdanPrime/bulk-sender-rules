@@ -63,17 +63,21 @@ export function diffScanRecords(
 
   let severity: "info" | "warn" | "fail" = "info";
 
-  for (const record of [...oldRecords, ...newRecords]) {
+  for (const record of newRecords) {
     if (record.verdict === "FAIL") {
       severity = "fail";
       break;
     }
-    if (record.verdict === "WARN" && severity !== "fail") {
+    if (record.verdict === "WARN") {
       severity = "warn";
     }
   }
 
   if (changed.length > 0 && severity === "info") {
+    severity = "warn";
+  }
+
+  if (removed.length > 0 && severity === "info") {
     severity = "warn";
   }
 
