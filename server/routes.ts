@@ -222,6 +222,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/domains/:id/runs", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const domain = await storage.getDomain(req.params.id);
+      
+      if (!domain || domain.userId !== user.id) {
+        return res.status(404).json({ error: "Domain not found" });
+      }
+
+      const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 30;
+      const runs = await storage.getScanRunsByDomainId(req.params.id, limit);
+      res.json({ runs });
+    } catch (error: any) {
+      console.error("Get runs error:", error);
+      res.status(500).json({ error: "Failed to get scan runs", details: error.message });
+    }
+  });
+
+  app.get("/api/domains/:id/diff/latest", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const domain = await storage.getDomain(req.params.id);
+      
+      if (!domain || domain.userId !== user.id) {
+        return res.status(404).json({ error: "Domain not found" });
+      }
+
+      const diff = await storage.getLatestScanDiffByDomainId(req.params.id);
+      if (!diff) {
+        return res.status(404).json({ error: "No diff found" });
+      }
+
+      res.json({ diff });
+    } catch (error: any) {
+      console.error("Get diff error:", error);
+      res.status(500).json({ error: "Failed to get diff", details: error.message });
+    }
+  });
+
   app.post("/api/report", async (req, res) => {
     try {
       const { domainId, scanJson } = req.body;
