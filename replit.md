@@ -24,8 +24,11 @@ I prefer simple language. I want iterative development. Ask before making major 
   - Events: DOMAIN_CREATED, ALERT_SENT, TEAM_CREATED, MEMBER_ADDED, etc.
 - **Public Share Links**: Shareable scan reports with expiration support
   - New table: `public_reports` with UUID-based anonymous access
-- **Admin Metrics**: Platform-wide statistics dashboard
+- **Admin Metrics Dashboard**: Platform-wide statistics dashboard with proper access control
   - New routes: `/api/admin/metrics` for user/domain/scan/alert counts
+  - UI: `/admin` route with Agency-tier access control (plan-based proxy)
+  - Security: Loading state handling, stale error clearing, retry logic
+  - Access: Only Agency users can view platform metrics and admin dashboard
 - **Monitoring Job Updates**: Smart alerting with preference-aware notifications
   - Loads domain + user preferences, merges field-by-field
   - Filters channels, checks thresholds, only logs when actually sent

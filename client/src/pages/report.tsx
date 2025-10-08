@@ -49,6 +49,8 @@ export default function ReportPage() {
     <PublicReport
       slug={slug}
       domain={scanData.domain}
+      domainId={data.domain?.id}
+      domainUserId={data.domain?.userId}
       scanDate={formatDistanceToNow(new Date(data.report.createdAt), { addSuffix: true })}
       overallStatus={scanData.summary.overall}
       records={records}

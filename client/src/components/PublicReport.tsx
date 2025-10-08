@@ -1,16 +1,22 @@
-import { Card } from "@/components/ui/card";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Printer, Share2, Download } from "lucide-react";
+import { Printer, Share2, Download, Settings, Bell } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import StatusBadge from "./StatusBadge";
 import DNSRecordCard from "./DNSRecordCard";
 import { useAuth } from "@/hooks/use-auth";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useState } from "react";
 
 interface PublicReportProps {
   slug: string;
   domain: string;
+  domainId?: string;
+  domainUserId?: string;
   scanDate: string;
   overallStatus: "PASS" | "WARN" | "FAIL";
   records: Array<{
@@ -25,16 +31,62 @@ interface PublicReportProps {
 export default function PublicReport({
   slug,
   domain,
+  domainId,
+  domainUserId,
   scanDate,
   overallStatus,
   records,
 }: PublicReportProps) {
   const { isAuthenticated, user } = useAuth();
   const { toast } = useToast();
+  
+  // Check if current user owns this domain
+  const isOwner = isAuthenticated && domainId && user?.id === domainUserId;
+  const [showAlertPrefs, setShowAlertPrefs] = useState(false);
 
   const { data: planData } = useQuery<{ plan: string; features: Record<string, boolean> }>({
     queryKey: ["/api/billing/plan"],
     enabled: isAuthenticated,
+  });
+
+  const { data: alertPrefs, isLoading: alertPrefsLoading } = useQuery<{
+    emailEnabled: string | boolean;
+    slackEnabled: string | boolean;
+    threshold: string;
+    digest: string | boolean;
+  }>({
+    queryKey: ["/api/domains", domainId, "alert-prefs"],
+    enabled: isOwner && !!domainId,
+  });
+
+  // Helper to normalize preferences to string values for API
+  const normalizePrefs = (prefs: any) => ({
+    emailEnabled: String(prefs.emailEnabled === true || prefs.emailEnabled === "true" ? "true" : "false"),
+    slackEnabled: String(prefs.slackEnabled === true || prefs.slackEnabled === "true" ? "true" : "false"),
+    threshold: String(prefs.threshold || "warn"),
+    digest: String(prefs.digest === true || prefs.digest === "true" ? "true" : "false"),
+  });
+
+  const updateAlertPrefsMutation = useMutation({
+    mutationFn: async (prefs: any) => {
+      const normalized = normalizePrefs(prefs);
+      const res = await apiRequest("PUT", `/api/domains/${domainId}/alert-prefs`, normalized);
+      return await res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/domains", domainId, "alert-prefs"] });
+      toast({
+        title: "Preferences Updated",
+        description: "Alert preferences have been saved successfully.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Update Failed",
+        description: error.message || "Failed to update alert preferences.",
+        variant: "destructive",
+      });
+    },
   });
 
   const downloadPdfMutation = useMutation({
@@ -153,6 +205,127 @@ export default function PublicReport({
           ))}
         </div>
       </div>
+
+      {isOwner && (
+        <Card className="mt-8 print:hidden">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Bell className="h-5 w-5 text-muted-foreground" />
+                <CardTitle>Alert Preferences</CardTitle>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowAlertPrefs(!showAlertPrefs)}
+                data-testid="button-toggle-alert-prefs"
+              >
+                {showAlertPrefs ? "Hide" : "Show"}
+              </Button>
+            </div>
+            <CardDescription>
+              Configure notifications for this domain (overrides global settings)
+            </CardDescription>
+          </CardHeader>
+          
+          {showAlertPrefs && (
+            <CardContent className="space-y-6">
+              {alertPrefsLoading ? (
+                <div className="flex justify-center py-4">
+                  <div className="animate-pulse text-muted-foreground">Loading preferences...</div>
+                </div>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label htmlFor="email-enabled" data-testid="label-email-enabled">Email Alerts</Label>
+                      <p className="text-sm text-muted-foreground">
+                        Receive alerts via email
+                      </p>
+                    </div>
+                    <Switch
+                      id="email-enabled"
+                      checked={alertPrefs?.emailEnabled === "true" || alertPrefs?.emailEnabled === true}
+                      onCheckedChange={(checked) =>
+                        updateAlertPrefsMutation.mutate({
+                          ...alertPrefs,
+                          emailEnabled: checked ? "true" : "false",
+                        })
+                      }
+                      data-testid="switch-email-enabled"
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label htmlFor="slack-enabled" data-testid="label-slack-enabled">Slack Alerts</Label>
+                      <p className="text-sm text-muted-foreground">
+                        Receive alerts via Slack webhook
+                      </p>
+                    </div>
+                    <Switch
+                      id="slack-enabled"
+                      checked={alertPrefs?.slackEnabled === "true" || alertPrefs?.slackEnabled === true}
+                      onCheckedChange={(checked) =>
+                        updateAlertPrefsMutation.mutate({
+                          ...alertPrefs,
+                          slackEnabled: checked ? "true" : "false",
+                        })
+                      }
+                      data-testid="switch-slack-enabled"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="threshold" data-testid="label-threshold">Alert Threshold</Label>
+                    <Select
+                      value={alertPrefs?.threshold || "warn"}
+                      onValueChange={(value) =>
+                        updateAlertPrefsMutation.mutate({
+                          ...alertPrefs,
+                          threshold: value,
+                        })
+                      }
+                    >
+                      <SelectTrigger id="threshold" data-testid="select-threshold">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="info">Info (all changes)</SelectItem>
+                        <SelectItem value="warn">Warning (warnings & failures)</SelectItem>
+                        <SelectItem value="fail">Critical (failures only)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-sm text-muted-foreground">
+                      Minimum severity level to trigger alerts
+                    </p>
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label htmlFor="digest-enabled" data-testid="label-digest-enabled">Weekly Digest</Label>
+                      <p className="text-sm text-muted-foreground">
+                        Include in weekly summary email
+                      </p>
+                    </div>
+                    <Switch
+                      id="digest-enabled"
+                      checked={alertPrefs?.digest === "true" || alertPrefs?.digest === true}
+                      onCheckedChange={(checked) =>
+                        updateAlertPrefsMutation.mutate({
+                          ...alertPrefs,
+                          digest: checked ? "true" : "false",
+                        })
+                      }
+                      data-testid="switch-digest-enabled"
+                    />
+                  </div>
+                </>
+              )}
+            </CardContent>
+          )}
+        </Card>
+      )}
 
       <div className="mt-12 text-center text-sm text-muted-foreground print:hidden">
         <p>Powered by Inbox Deliverability Copilot</p>
