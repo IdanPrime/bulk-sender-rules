@@ -14,6 +14,7 @@ import SignupPage from "@/pages/signup";
 import PricingPage from "@/pages/pricing";
 import SubscribePage from "@/pages/subscribe";
 import SettingsPage from "@/pages/settings";
+import AdminDashboard from "@/pages/admin";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -28,6 +29,7 @@ function Router() {
       <Route path="/scan" component={ScanPage} />
       <Route path="/template-lint" component={TemplateLintPage} />
       <Route path="/settings" component={SettingsPage} />
+      <Route path="/admin" component={AdminDashboard} />
       <Route path="/report/:slug" component={ReportPage} />
       <Route component={NotFound} />
     </Switch>
