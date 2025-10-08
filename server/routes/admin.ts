@@ -2,8 +2,9 @@ import { Router } from "express";
 import { storage } from "../storage";
 import { requireAuth } from "../auth-routes";
 import { db } from "../db";
-import { users, domains, scanRuns, alerts, emailLog } from "@shared/schema";
+import { users, domains, scanRuns, alerts, emailLog, appEvents } from "@shared/schema";
 import { eq, and, gte, sql } from "drizzle-orm";
+import { AppEventType } from "../services/analytics";
 
 const router = Router();
 
@@ -88,6 +89,76 @@ router.get("/metrics", requireAuth, requireAdmin, async (req, res) => {
       email: {
         failuresLast24h: Number(emailFailures[0]?.count || 0),
       },
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get events analytics
+router.get("/metrics/events", requireAuth, requireAdmin, async (req, res) => {
+  try {
+    const { days = "30" } = req.query;
+    const daysNum = parseInt(days as string);
+    const since = new Date(Date.now() - daysNum * 24 * 60 * 60 * 1000);
+
+    // Get all events since date
+    const events = await db
+      .select()
+      .from(appEvents)
+      .where(gte(appEvents.createdAt, since))
+      .orderBy(appEvents.createdAt);
+
+    // Get ALL possible event types from enum
+    const eventTypes = Object.values(AppEventType);
+
+    // Initialize event counts with zeros for all event types
+    const eventCounts: Record<string, number> = {};
+    eventTypes.forEach(eventType => {
+      eventCounts[eventType] = 0;
+    });
+
+    // Fill in actual event counts
+    events.forEach(event => {
+      if (eventCounts.hasOwnProperty(event.event)) {
+        eventCounts[event.event]++;
+      }
+    });
+
+    // Generate full date range
+    const dateRange: string[] = [];
+    for (let i = daysNum - 1; i >= 0; i--) {
+      const date = new Date(Date.now() - i * 24 * 60 * 60 * 1000);
+      dateRange.push(date.toISOString().split('T')[0]);
+    }
+
+    // Initialize timeline with all dates and zero counts for all event types
+    const timelineMap: Record<string, Record<string, number>> = {};
+    dateRange.forEach(date => {
+      timelineMap[date] = {};
+      eventTypes.forEach(eventType => {
+        timelineMap[date][eventType] = 0;
+      });
+    });
+
+    // Fill in actual event counts
+    events.forEach(event => {
+      const date = new Date(event.createdAt).toISOString().split('T')[0];
+      if (timelineMap[date]) {
+        timelineMap[date][event.event] = (timelineMap[date][event.event] || 0) + 1;
+      }
+    });
+
+    // Format timeline data
+    const timeline = dateRange.map(date => ({
+      date,
+      ...timelineMap[date],
+    }));
+
+    res.json({
+      total: events.length,
+      byType: eventCounts,
+      timeline,
     });
   } catch (error: any) {
     res.status(500).json({ error: error.message });

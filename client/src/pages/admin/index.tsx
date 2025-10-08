@@ -16,6 +16,7 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
 
 interface AdminMetrics {
   users: {
@@ -33,9 +34,18 @@ interface AdminMetrics {
   alerts: {
     last24h: number;
   };
-  emailFailures: {
-    last24h: number;
+  email: {
+    failuresLast24h: number;
   };
+}
+
+interface EventMetrics {
+  total: number;
+  byType: Record<string, number>;
+  timeline: Array<{
+    date: string;
+    [key: string]: any;
+  }>;
 }
 
 export default function AdminDashboard() {
@@ -57,10 +67,17 @@ export default function AdminDashboard() {
     retry: 1,
   });
 
+  const { data: events, isLoading: eventsLoading } = useQuery<EventMetrics>({
+    queryKey: ["/api/admin/metrics/events"],
+    enabled: isAuthenticated && isAdmin,
+    retry: 1,
+  });
+
   // Reset metrics query when admin status changes to clear stale errors
   useEffect(() => {
     if (isAdmin) {
       queryClient.resetQueries({ queryKey: ["/api/admin/metrics"] });
+      queryClient.resetQueries({ queryKey: ["/api/admin/metrics/events"] });
     }
   }, [isAdmin]);
 
@@ -198,7 +215,7 @@ export default function AdminDashboard() {
             <MailWarning className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{metrics.emailFailures.last24h}</div>
+            <div className="text-2xl font-bold">{metrics.email.failuresLast24h}</div>
             <p className="text-xs text-muted-foreground mt-1">Failed deliveries (24h)</p>
           </CardContent>
         </Card>
@@ -278,7 +295,7 @@ export default function AdminDashboard() {
                 <span className="text-lg font-semibold">
                   {metrics.alerts.last24h > 0
                     ? (
-                        ((metrics.alerts.last24h - metrics.emailFailures.last24h) /
+                        ((metrics.alerts.last24h - metrics.email.failuresLast24h) /
                           metrics.alerts.last24h) *
                         100
                       ).toFixed(1)
@@ -297,6 +314,142 @@ export default function AdminDashboard() {
             </div>
           </CardContent>
         </Card>
+      </div>
+
+      {/* Events Analytics Section */}
+      <div className="mt-8">
+        <h2 className="text-2xl font-bold mb-4">Product Analytics</h2>
+        
+        {eventsLoading && (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          </div>
+        )}
+
+        {!eventsLoading && !events && (
+          <Card>
+            <CardContent className="pt-6">
+              <div className="text-center py-8">
+                <AlertCircle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                <p className="text-muted-foreground">Failed to load events data</p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {!eventsLoading && events && (
+          <div className="space-y-6">
+            <div className="grid gap-6 md:grid-cols-2">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Event Activity (Last 30 Days)</CardTitle>
+                  <CardDescription>Total tracked events: {events.total}</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {Object.entries(events.byType)
+                      .sort((a, b) => b[1] - a[1])
+                      .map(([eventType, count]) => (
+                        <div
+                          key={eventType}
+                          className="flex items-center justify-between"
+                          data-testid={`row-event-${eventType.toLowerCase()}`}
+                        >
+                          <span className="text-sm font-medium">{eventType.replace(/_/g, ' ')}</span>
+                          <Badge variant="secondary">{count}</Badge>
+                        </div>
+                      ))}
+                    {Object.keys(events.byType).length === 0 && (
+                      <p className="text-sm text-muted-foreground text-center py-4">
+                        No events tracked yet
+                      </p>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>Event Distribution</CardTitle>
+                  <CardDescription>Breakdown by event type</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {events.total === 0 ? (
+                      <p className="text-sm text-muted-foreground text-center py-4">
+                        No events to display
+                      </p>
+                    ) : (
+                      Object.entries(events.byType)
+                        .sort((a, b) => b[1] - a[1])
+                        .map(([eventType, count]) => {
+                          const percentage = events.total > 0 
+                            ? Math.round((count / events.total) * 100) 
+                            : 0;
+                          return (
+                            <div key={eventType} className="space-y-1">
+                              <div className="flex items-center justify-between text-sm">
+                                <span className="text-muted-foreground">{eventType.replace(/_/g, ' ')}</span>
+                                <span className="font-medium">{percentage}%</span>
+                              </div>
+                              <div className="h-2 bg-muted rounded-full overflow-hidden">
+                                <div
+                                  className="h-full bg-primary transition-all"
+                                  style={{ width: `${percentage}%` }}
+                                />
+                              </div>
+                            </div>
+                          );
+                        })
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Timeline Chart */}
+            {events.timeline.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Events Timeline</CardTitle>
+                  <CardDescription>Daily event activity over the last 30 days</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <LineChart data={events.timeline}>
+                      <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                      <XAxis 
+                        dataKey="date" 
+                        className="text-xs"
+                        tickFormatter={(value) => new Date(value).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                      />
+                      <YAxis className="text-xs" />
+                      <Tooltip 
+                        labelFormatter={(label) => new Date(label).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                      />
+                      <Legend />
+                      {Object.keys(events.byType).map((eventType, index) => {
+                        const colors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
+                        return (
+                          <Line
+                            key={eventType}
+                            type="monotone"
+                            dataKey={eventType}
+                            name={eventType.replace(/_/g, ' ')}
+                            stroke={colors[index % colors.length]}
+                            strokeWidth={2}
+                            dot={{ r: 3 }}
+                            activeDot={{ r: 5 }}
+                          />
+                        );
+                      })}
+                    </LineChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
