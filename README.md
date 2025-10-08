@@ -44,11 +44,20 @@ cp .env.example .env
 # Run database migrations
 npm run db:push
 
+# (Optional) Seed test data - creates 3 users (Free/Pro/Agency) with domains
+tsx server/seed.ts
+
 # Start development server
 npm run dev
 ```
 
 The application will be available at `http://localhost:5000`
+
+### Test Accounts (after seeding)
+If you ran the seed script, you can login with these test accounts:
+- **Free**: `test-free@example.com` / `password123` (1 domain)
+- **Pro**: `test-pro@example.com` / `password123` (3 domains, 2 monitored)
+- **Agency**: `test-agency@example.com` / `password123` (5 domains, 4 monitored)
 
 ---
 
