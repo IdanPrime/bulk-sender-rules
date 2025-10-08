@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { sanitizeDomain } from "@/lib/sanitize";
+import UsageWidget from "./UsageWidget";
 
 export default function Dashboard() {
   const { user, isAuthenticated, isLoading: authLoading } = useAuth();
@@ -54,6 +55,7 @@ export default function Dashboard() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/dashboard"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/user/usage"] });
       setShowAddDialog(false);
       setNewDomain("");
       toast({
@@ -150,6 +152,8 @@ export default function Dashboard() {
 
   return (
     <div className="max-w-7xl mx-auto px-6 py-12">
+      <UsageWidget />
+
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-3xl font-bold mb-2">Your Domains</h1>
