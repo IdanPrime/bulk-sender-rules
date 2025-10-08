@@ -51,20 +51,62 @@ export const templateChecks = pgTable("template_checks", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
-export const scans = pgTable("scans", {
+export const scanRuns = pgTable("scan_runs", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   domainId: varchar("domain_id").references(() => domains.id, { onDelete: "cascade" }).notNull(),
-  result: jsonb("result").notNull(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
+  startedAt: timestamp("started_at", { withTimezone: true }).defaultNow().notNull(),
+  finishedAt: timestamp("finished_at", { withTimezone: true }),
+  status: text("status").notNull(),
+  errorText: text("error_text"),
+  score: integer("score"),
+  scoreBreakdown: jsonb("score_breakdown"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const scanRecords = pgTable("scan_records", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  runId: varchar("run_id").references(() => scanRuns.id, { onDelete: "cascade" }).notNull(),
+  recordType: text("record_type").notNull(),
+  selector: text("selector"),
+  valueHash: text("value_hash").notNull(),
+  rawValue: text("raw_value").notNull(),
+  verdict: text("verdict").notNull(),
+  metaJson: jsonb("meta_json"),
+});
+
+export const scanDiffs = pgTable("scan_diffs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  runId: varchar("run_id").references(() => scanRuns.id, { onDelete: "cascade" }).notNull(),
+  addedJson: jsonb("added_json"),
+  removedJson: jsonb("removed_json"),
+  changedJson: jsonb("changed_json"),
+  severity: text("severity").notNull(),
+});
+
+export const alertPrefs = pgTable("alert_prefs", {
+  userId: varchar("user_id").primaryKey().references(() => users.id, { onDelete: "cascade" }),
+  emailEnabled: text("email_enabled").default("true").notNull(),
+  slackEnabled: text("slack_enabled").default("false").notNull(),
+  threshold: text("threshold").default("warn").notNull(),
 });
 
 export const alerts = pgTable("alerts", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   domainId: varchar("domain_id").references(() => domains.id, { onDelete: "cascade" }).notNull(),
-  recordType: text("record_type").notNull(),
-  oldValue: text("old_value"),
-  newValue: text("new_value"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
+  runId: varchar("run_id").references(() => scanRuns.id, { onDelete: "cascade" }).notNull(),
+  type: text("type").notNull(),
+  severity: text("severity").notNull(),
+  title: text("title").notNull(),
+  body: text("body"),
+  sentAt: timestamp("sent_at", { withTimezone: true }),
+});
+
+export const emailLog = pgTable("email_log", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+  type: text("type").notNull(),
+  sentAt: timestamp("sent_at", { withTimezone: true }).defaultNow().notNull(),
+  metaJson: jsonb("meta_json"),
 });
 
 export const insertUserSchema = createInsertSchema(users).omit({
@@ -92,14 +134,28 @@ export const insertTemplateCheckSchema = createInsertSchema(templateChecks).omit
   createdAt: true,
 });
 
-export const insertScanSchema = createInsertSchema(scans).omit({
+export const insertScanRunSchema = createInsertSchema(scanRuns).omit({
   id: true,
   createdAt: true,
 });
 
+export const insertScanRecordSchema = createInsertSchema(scanRecords).omit({
+  id: true,
+});
+
+export const insertScanDiffSchema = createInsertSchema(scanDiffs).omit({
+  id: true,
+});
+
+export const insertAlertPrefSchema = createInsertSchema(alertPrefs);
+
 export const insertAlertSchema = createInsertSchema(alerts).omit({
   id: true,
-  createdAt: true,
+});
+
+export const insertEmailLogSchema = createInsertSchema(emailLog).omit({
+  id: true,
+  sentAt: true,
 });
 
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -117,8 +173,20 @@ export type HealthPoint = typeof healthPoints.$inferSelect;
 export type InsertTemplateCheck = z.infer<typeof insertTemplateCheckSchema>;
 export type TemplateCheck = typeof templateChecks.$inferSelect;
 
-export type InsertScan = z.infer<typeof insertScanSchema>;
-export type Scan = typeof scans.$inferSelect;
+export type InsertScanRun = z.infer<typeof insertScanRunSchema>;
+export type ScanRun = typeof scanRuns.$inferSelect;
+
+export type InsertScanRecord = z.infer<typeof insertScanRecordSchema>;
+export type ScanRecord = typeof scanRecords.$inferSelect;
+
+export type InsertScanDiff = z.infer<typeof insertScanDiffSchema>;
+export type ScanDiff = typeof scanDiffs.$inferSelect;
+
+export type InsertAlertPref = z.infer<typeof insertAlertPrefSchema>;
+export type AlertPref = typeof alertPrefs.$inferSelect;
 
 export type InsertAlert = z.infer<typeof insertAlertSchema>;
 export type Alert = typeof alerts.$inferSelect;
+
+export type InsertEmailLog = z.infer<typeof insertEmailLogSchema>;
+export type EmailLog = typeof emailLog.$inferSelect;
