@@ -12,6 +12,15 @@ import {
   alerts,
   alertPrefs,
   emailLog,
+  destinations,
+  planLimits,
+  teams,
+  teamMembers,
+  teamDomains,
+  auditLog,
+  publicReports,
+  reportExports,
+  domainAlertPrefs,
   type User,
   type InsertUser,
   type Domain,
@@ -34,6 +43,24 @@ import {
   type InsertAlertPref,
   type EmailLog,
   type InsertEmailLog,
+  type Destination,
+  type InsertDestination,
+  type PlanLimit,
+  type InsertPlanLimit,
+  type Team,
+  type InsertTeam,
+  type TeamMember,
+  type InsertTeamMember,
+  type TeamDomain,
+  type InsertTeamDomain,
+  type AuditLog,
+  type InsertAuditLog,
+  type PublicReport,
+  type InsertPublicReport,
+  type ReportExport,
+  type InsertReportExport,
+  type DomainAlertPref,
+  type InsertDomainAlertPref,
 } from "@shared/schema";
 import type { IStorage } from "./storage";
 
@@ -323,5 +350,183 @@ export class DbStorage implements IStorage {
       .innerJoin(users, eq(domains.userId, users.id))
       .where(and(eq(domains.monitoringEnabled, "true"), eq(users.isPro, "true")));
     return result;
+  }
+
+  async getDestinationsByUserId(userId: string): Promise<Destination[]> {
+    return await db.select().from(destinations).where(eq(destinations.userId, userId));
+  }
+
+  async createDestination(destination: InsertDestination): Promise<Destination> {
+    const result = await db.insert(destinations).values(destination).returning();
+    return result[0];
+  }
+
+  async deleteDestination(id: string): Promise<void> {
+    await db.delete(destinations).where(eq(destinations.id, id));
+  }
+
+  async updateDestinationEnabled(id: string, enabled: boolean): Promise<Destination> {
+    const result = await db
+      .update(destinations)
+      .set({ enabled: enabled ? "true" : "false" })
+      .where(eq(destinations.id, id))
+      .returning();
+    return result[0];
+  }
+
+  async getPlanLimit(plan: string): Promise<PlanLimit | undefined> {
+    const result = await db.select().from(planLimits).where(eq(planLimits.plan, plan));
+    return result[0];
+  }
+
+  async getAllPlanLimits(): Promise<PlanLimit[]> {
+    return await db.select().from(planLimits);
+  }
+
+  async getTeamsByUserId(userId: string): Promise<Team[]> {
+    return await db.select().from(teams).where(eq(teams.ownerUserId, userId));
+  }
+
+  async getTeamById(id: string): Promise<Team | undefined> {
+    const result = await db.select().from(teams).where(eq(teams.id, id));
+    return result[0];
+  }
+
+  async createTeam(team: InsertTeam): Promise<Team> {
+    const result = await db.insert(teams).values(team).returning();
+    return result[0];
+  }
+
+  async deleteTeam(id: string): Promise<void> {
+    await db.delete(teams).where(eq(teams.id, id));
+  }
+
+  async getTeamMembersByTeamId(teamId: string): Promise<TeamMember[]> {
+    return await db.select().from(teamMembers).where(eq(teamMembers.teamId, teamId));
+  }
+
+  async getTeamMembersByUserId(userId: string): Promise<TeamMember[]> {
+    return await db.select().from(teamMembers).where(eq(teamMembers.userId, userId));
+  }
+
+  async createTeamMember(teamMember: InsertTeamMember): Promise<TeamMember> {
+    const result = await db.insert(teamMembers).values(teamMember).returning();
+    return result[0];
+  }
+
+  async deleteTeamMember(teamId: string, userId: string): Promise<void> {
+    await db.delete(teamMembers).where(and(eq(teamMembers.teamId, teamId), eq(teamMembers.userId, userId)));
+  }
+
+  async updateTeamMemberRole(teamId: string, userId: string, role: string): Promise<TeamMember> {
+    const result = await db
+      .update(teamMembers)
+      .set({ role })
+      .where(and(eq(teamMembers.teamId, teamId), eq(teamMembers.userId, userId)))
+      .returning();
+    return result[0];
+  }
+
+  async getTeamDomainsByTeamId(teamId: string): Promise<TeamDomain[]> {
+    return await db.select().from(teamDomains).where(eq(teamDomains.teamId, teamId));
+  }
+
+  async getTeamDomainsByDomainId(domainId: string): Promise<TeamDomain[]> {
+    return await db.select().from(teamDomains).where(eq(teamDomains.domainId, domainId));
+  }
+
+  async createTeamDomain(teamDomain: InsertTeamDomain): Promise<TeamDomain> {
+    const result = await db.insert(teamDomains).values(teamDomain).returning();
+    return result[0];
+  }
+
+  async deleteTeamDomain(teamId: string, domainId: string): Promise<void> {
+    await db.delete(teamDomains).where(and(eq(teamDomains.teamId, teamId), eq(teamDomains.domainId, domainId)));
+  }
+
+  async createAuditLog(log: InsertAuditLog): Promise<AuditLog> {
+    const result = await db.insert(auditLog).values(log).returning();
+    return result[0];
+  }
+
+  async getAuditLogsByDomainId(domainId: string, limit?: number): Promise<AuditLog[]> {
+    let query = db
+      .select()
+      .from(auditLog)
+      .where(eq(auditLog.domainId, domainId))
+      .orderBy(desc(auditLog.createdAt));
+    
+    if (limit) {
+      query = query.limit(limit) as any;
+    }
+    
+    return await query;
+  }
+
+  async getAuditLogsByUserId(userId: string, limit?: number): Promise<AuditLog[]> {
+    let query = db
+      .select()
+      .from(auditLog)
+      .where(eq(auditLog.actorUserId, userId))
+      .orderBy(desc(auditLog.createdAt));
+    
+    if (limit) {
+      query = query.limit(limit) as any;
+    }
+    
+    return await query;
+  }
+
+  async getPublicReportByToken(token: string): Promise<PublicReport | undefined> {
+    const result = await db.select().from(publicReports).where(eq(publicReports.token, token));
+    return result[0];
+  }
+
+  async getPublicReportsByDomainId(domainId: string): Promise<PublicReport[]> {
+    return await db.select().from(publicReports).where(eq(publicReports.domainId, domainId));
+  }
+
+  async createPublicReport(publicReport: InsertPublicReport): Promise<PublicReport> {
+    const result = await db.insert(publicReports).values(publicReport).returning();
+    return result[0];
+  }
+
+  async deletePublicReport(id: string): Promise<void> {
+    await db.delete(publicReports).where(eq(publicReports.id, id));
+  }
+
+  async getReportExportsByDomainId(domainId: string): Promise<ReportExport[]> {
+    return await db.select().from(reportExports).where(eq(reportExports.domainId, domainId));
+  }
+
+  async createReportExport(reportExport: InsertReportExport): Promise<ReportExport> {
+    const result = await db.insert(reportExports).values(reportExport).returning();
+    return result[0];
+  }
+
+  async getDomainAlertPref(domainId: string): Promise<DomainAlertPref | undefined> {
+    const result = await db.select().from(domainAlertPrefs).where(eq(domainAlertPrefs.domainId, domainId));
+    return result[0];
+  }
+
+  async upsertDomainAlertPref(domainAlertPref: InsertDomainAlertPref): Promise<DomainAlertPref> {
+    const result = await db
+      .insert(domainAlertPrefs)
+      .values(domainAlertPref)
+      .onConflictDoUpdate({
+        target: domainAlertPrefs.domainId,
+        set: domainAlertPref,
+      })
+      .returning();
+    return result[0];
+  }
+
+  async updateUserPlan(userId: string, plan: string): Promise<User> {
+    const result = await db
+      .update(users)
+      .set({ plan })
+      .where(eq(users.id, userId))
+      .returning();
+    return result[0];
   }
 }

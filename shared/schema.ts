@@ -10,6 +10,7 @@ export const users = pgTable("users", {
   stripeCustomerId: text("stripe_customer_id"),
   stripeSubscriptionId: text("stripe_subscription_id"),
   isPro: text("is_pro").default("false").notNull(),
+  plan: text("plan").default("Free").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -109,6 +110,78 @@ export const emailLog = pgTable("email_log", {
   metaJson: jsonb("meta_json"),
 });
 
+export const destinations = pgTable("destinations", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+  type: text("type").notNull(),
+  url: text("url").notNull(),
+  enabled: text("enabled").default("true").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const planLimits = pgTable("plan_limits", {
+  plan: text("plan").primaryKey(),
+  maxDomains: integer("max_domains").notNull(),
+  features: jsonb("features").notNull(),
+});
+
+export const teams = pgTable("teams", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  ownerUserId: varchar("owner_user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+  name: text("name").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const teamMembers = pgTable("team_members", {
+  teamId: varchar("team_id").references(() => teams.id, { onDelete: "cascade" }).notNull(),
+  userId: varchar("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+  role: text("role").notNull(),
+}, (table) => ({
+  pk: sql`PRIMARY KEY (${table.teamId}, ${table.userId})`,
+}));
+
+export const teamDomains = pgTable("team_domains", {
+  teamId: varchar("team_id").references(() => teams.id, { onDelete: "cascade" }).notNull(),
+  domainId: varchar("domain_id").references(() => domains.id, { onDelete: "cascade" }).notNull(),
+}, (table) => ({
+  pk: sql`PRIMARY KEY (${table.teamId}, ${table.domainId})`,
+}));
+
+export const auditLog = pgTable("audit_log", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  actorUserId: varchar("actor_user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+  domainId: varchar("domain_id").references(() => domains.id, { onDelete: "cascade" }),
+  event: text("event").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  metaJson: jsonb("meta_json"),
+});
+
+export const publicReports = pgTable("public_reports", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  domainId: varchar("domain_id").references(() => domains.id, { onDelete: "cascade" }).notNull(),
+  runId: varchar("run_id").references(() => scanRuns.id, { onDelete: "cascade" }).notNull(),
+  token: text("token").notNull().unique(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }),
+});
+
+export const reportExports = pgTable("report_exports", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  domainId: varchar("domain_id").references(() => domains.id, { onDelete: "cascade" }).notNull(),
+  runId: varchar("run_id").references(() => scanRuns.id, { onDelete: "cascade" }).notNull(),
+  format: text("format").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  bytesSize: integer("bytes_size"),
+});
+
+export const domainAlertPrefs = pgTable("domain_alert_prefs", {
+  domainId: varchar("domain_id").primaryKey().references(() => domains.id, { onDelete: "cascade" }),
+  emailEnabled: text("email_enabled").default("true").notNull(),
+  slackEnabled: text("slack_enabled").default("false").notNull(),
+  threshold: text("threshold").default("warn").notNull(),
+  digest: text("digest").default("false").notNull(),
+});
+
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
   createdAt: true,
@@ -190,3 +263,63 @@ export type Alert = typeof alerts.$inferSelect;
 
 export type InsertEmailLog = z.infer<typeof insertEmailLogSchema>;
 export type EmailLog = typeof emailLog.$inferSelect;
+
+export const insertDestinationSchema = createInsertSchema(destinations).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertPlanLimitSchema = createInsertSchema(planLimits);
+
+export const insertTeamSchema = createInsertSchema(teams).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertTeamMemberSchema = createInsertSchema(teamMembers);
+
+export const insertTeamDomainSchema = createInsertSchema(teamDomains);
+
+export const insertAuditLogSchema = createInsertSchema(auditLog).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertPublicReportSchema = createInsertSchema(publicReports).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertReportExportSchema = createInsertSchema(reportExports).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertDomainAlertPrefSchema = createInsertSchema(domainAlertPrefs);
+
+export type InsertDestination = z.infer<typeof insertDestinationSchema>;
+export type Destination = typeof destinations.$inferSelect;
+
+export type InsertPlanLimit = z.infer<typeof insertPlanLimitSchema>;
+export type PlanLimit = typeof planLimits.$inferSelect;
+
+export type InsertTeam = z.infer<typeof insertTeamSchema>;
+export type Team = typeof teams.$inferSelect;
+
+export type InsertTeamMember = z.infer<typeof insertTeamMemberSchema>;
+export type TeamMember = typeof teamMembers.$inferSelect;
+
+export type InsertTeamDomain = z.infer<typeof insertTeamDomainSchema>;
+export type TeamDomain = typeof teamDomains.$inferSelect;
+
+export type InsertAuditLog = z.infer<typeof insertAuditLogSchema>;
+export type AuditLog = typeof auditLog.$inferSelect;
+
+export type InsertPublicReport = z.infer<typeof insertPublicReportSchema>;
+export type PublicReport = typeof publicReports.$inferSelect;
+
+export type InsertReportExport = z.infer<typeof insertReportExportSchema>;
+export type ReportExport = typeof reportExports.$inferSelect;
+
+export type InsertDomainAlertPref = z.infer<typeof insertDomainAlertPrefSchema>;
+export type DomainAlertPref = typeof domainAlertPrefs.$inferSelect;

@@ -9,11 +9,23 @@ import { registerAuthRoutes, requireAuth } from "./auth-routes";
 import { registerStripeRoutes } from "./stripe-routes";
 import { registerAlertRoutes } from "./routes/alerts";
 import { runDailyRescans } from "./lib/cron";
+import { requireCapacity } from "./middleware/planLimits";
+import { logAuditEvent, AuditEvents } from "./services/auditLog";
+import destinationsRouter from "./routes/destinations";
+import publicReportsRouter from "./routes/publicReports";
+import teamsRouter from "./routes/teams";
+import adminRouter from "./routes/admin";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   registerAuthRoutes(app);
   registerStripeRoutes(app);
   registerAlertRoutes(app);
+  
+  // Register new routes
+  app.use("/api/destinations", destinationsRouter);
+  app.use("/api", publicReportsRouter);
+  app.use("/api/teams", teamsRouter);
+  app.use("/api/admin", adminRouter);
 
   app.post("/api/cron/rescan", async (req, res) => {
     try {
@@ -93,7 +105,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/domain", requireAuth, async (req, res) => {
+  app.post("/api/domain", requireAuth, requireCapacity('domains'), async (req, res) => {
     try {
       const user = req.user as any;
       const { name } = req.body;
@@ -106,6 +118,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const domain = await storage.createDomain(parsedDomain);
+      
+      // Log audit event
+      await logAuditEvent({
+        actorUserId: user.id,
+        event: AuditEvents.DOMAIN_ADDED,
+        domainId: domain.id,
+        meta: { domainName: domain.name },
+      });
+      
       res.json(domain);
     } catch (error: any) {
       console.error("Create domain error:", error);
@@ -376,6 +397,87 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error("Get health points error:", error);
       res.status(500).json({ error: "Failed to get health points", details: error.message });
+    }
+  });
+
+  // Domain alert preferences
+  app.get("/api/domains/:id/alert-prefs", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const domain = await storage.getDomain(req.params.id);
+      
+      if (!domain || domain.userId !== user.id) {
+        return res.status(404).json({ error: "Domain not found" });
+      }
+
+      const prefs = await storage.getDomainAlertPref(req.params.id);
+      
+      // If no domain-specific prefs, return user's global prefs
+      if (!prefs) {
+        const userPrefs = await storage.getAlertPref(user.id);
+        return res.json(userPrefs || {
+          emailEnabled: "true",
+          slackEnabled: "false",
+          threshold: "warn",
+          digest: "false",
+        });
+      }
+      
+      res.json(prefs);
+    } catch (error: any) {
+      console.error("Get domain alert prefs error:", error);
+      res.status(500).json({ error: "Failed to get alert preferences" });
+    }
+  });
+
+  app.put("/api/domains/:id/alert-prefs", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const domain = await storage.getDomain(req.params.id);
+      
+      if (!domain || domain.userId !== user.id) {
+        return res.status(404).json({ error: "Domain not found" });
+      }
+
+      const prefs = await storage.upsertDomainAlertPref({
+        domainId: req.params.id,
+        emailEnabled: req.body.emailEnabled,
+        slackEnabled: req.body.slackEnabled,
+        threshold: req.body.threshold,
+        digest: req.body.digest,
+      });
+      
+      // Log audit event
+      await logAuditEvent({
+        actorUserId: user.id,
+        event: AuditEvents.PREFS_CHANGED,
+        domainId: req.params.id,
+        meta: { preferences: prefs },
+      });
+      
+      res.json(prefs);
+    } catch (error: any) {
+      console.error("Update domain alert prefs error:", error);
+      res.status(400).json({ error: "Failed to update alert preferences" });
+    }
+  });
+
+  // Audit logs
+  app.get("/api/domains/:id/audit", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const domain = await storage.getDomain(req.params.id);
+      
+      if (!domain || domain.userId !== user.id) {
+        return res.status(404).json({ error: "Domain not found" });
+      }
+
+      const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 50;
+      const logs = await storage.getAuditLogsByDomainId(req.params.id, limit);
+      res.json({ logs });
+    } catch (error: any) {
+      console.error("Get audit logs error:", error);
+      res.status(500).json({ error: "Failed to get audit logs" });
     }
   });
 

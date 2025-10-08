@@ -21,6 +21,24 @@ import {
   type InsertAlertPref,
   type EmailLog,
   type InsertEmailLog,
+  type Destination,
+  type InsertDestination,
+  type PlanLimit,
+  type InsertPlanLimit,
+  type Team,
+  type InsertTeam,
+  type TeamMember,
+  type InsertTeamMember,
+  type TeamDomain,
+  type InsertTeamDomain,
+  type AuditLog,
+  type InsertAuditLog,
+  type PublicReport,
+  type InsertPublicReport,
+  type ReportExport,
+  type InsertReportExport,
+  type DomainAlertPref,
+  type InsertDomainAlertPref,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 
@@ -73,6 +91,46 @@ export interface IStorage {
 
   createEmailLog(emailLog: InsertEmailLog): Promise<EmailLog>;
   getEmailLogsByUserId(userId: string, type?: string): Promise<EmailLog[]>;
+
+  getDestinationsByUserId(userId: string): Promise<Destination[]>;
+  createDestination(destination: InsertDestination): Promise<Destination>;
+  deleteDestination(id: string): Promise<void>;
+  updateDestinationEnabled(id: string, enabled: boolean): Promise<Destination>;
+
+  getPlanLimit(plan: string): Promise<PlanLimit | undefined>;
+  getAllPlanLimits(): Promise<PlanLimit[]>;
+
+  getTeamsByUserId(userId: string): Promise<Team[]>;
+  getTeamById(id: string): Promise<Team | undefined>;
+  createTeam(team: InsertTeam): Promise<Team>;
+  deleteTeam(id: string): Promise<void>;
+
+  getTeamMembersByTeamId(teamId: string): Promise<TeamMember[]>;
+  getTeamMembersByUserId(userId: string): Promise<TeamMember[]>;
+  createTeamMember(teamMember: InsertTeamMember): Promise<TeamMember>;
+  deleteTeamMember(teamId: string, userId: string): Promise<void>;
+  updateTeamMemberRole(teamId: string, userId: string, role: string): Promise<TeamMember>;
+
+  getTeamDomainsByTeamId(teamId: string): Promise<TeamDomain[]>;
+  getTeamDomainsByDomainId(domainId: string): Promise<TeamDomain[]>;
+  createTeamDomain(teamDomain: InsertTeamDomain): Promise<TeamDomain>;
+  deleteTeamDomain(teamId: string, domainId: string): Promise<void>;
+
+  createAuditLog(auditLog: InsertAuditLog): Promise<AuditLog>;
+  getAuditLogsByDomainId(domainId: string, limit?: number): Promise<AuditLog[]>;
+  getAuditLogsByUserId(userId: string, limit?: number): Promise<AuditLog[]>;
+
+  getPublicReportByToken(token: string): Promise<PublicReport | undefined>;
+  getPublicReportsByDomainId(domainId: string): Promise<PublicReport[]>;
+  createPublicReport(publicReport: InsertPublicReport): Promise<PublicReport>;
+  deletePublicReport(id: string): Promise<void>;
+
+  getReportExportsByDomainId(domainId: string): Promise<ReportExport[]>;
+  createReportExport(reportExport: InsertReportExport): Promise<ReportExport>;
+
+  getDomainAlertPref(domainId: string): Promise<DomainAlertPref | undefined>;
+  upsertDomainAlertPref(domainAlertPref: InsertDomainAlertPref): Promise<DomainAlertPref>;
+  updateUserPlan(userId: string, plan: string): Promise<User>;
 }
 
 export class MemStorage implements IStorage {
@@ -123,6 +181,7 @@ export class MemStorage implements IStorage {
       stripeCustomerId: null,
       stripeSubscriptionId: null,
       isPro: "false",
+      plan: "Free",
       createdAt: new Date(),
     };
     this.users.set(id, user);
@@ -334,6 +393,134 @@ export class MemStorage implements IStorage {
       const user = this.users.get(domain.userId);
       return user?.isPro === "true";
     });
+  }
+
+  async getDestinationsByUserId(): Promise<Destination[]> {
+    throw new Error("MemStorage: Not implemented - use DbStorage");
+  }
+
+  async createDestination(): Promise<Destination> {
+    throw new Error("MemStorage: Not implemented - use DbStorage");
+  }
+
+  async deleteDestination(): Promise<void> {
+    throw new Error("MemStorage: Not implemented - use DbStorage");
+  }
+
+  async updateDestinationEnabled(): Promise<Destination> {
+    throw new Error("MemStorage: Not implemented - use DbStorage");
+  }
+
+  async getPlanLimit(): Promise<PlanLimit | undefined> {
+    throw new Error("MemStorage: Not implemented - use DbStorage");
+  }
+
+  async getAllPlanLimits(): Promise<PlanLimit[]> {
+    throw new Error("MemStorage: Not implemented - use DbStorage");
+  }
+
+  async getTeamsByUserId(): Promise<Team[]> {
+    throw new Error("MemStorage: Not implemented - use DbStorage");
+  }
+
+  async getTeamById(): Promise<Team | undefined> {
+    throw new Error("MemStorage: Not implemented - use DbStorage");
+  }
+
+  async createTeam(): Promise<Team> {
+    throw new Error("MemStorage: Not implemented - use DbStorage");
+  }
+
+  async deleteTeam(): Promise<void> {
+    throw new Error("MemStorage: Not implemented - use DbStorage");
+  }
+
+  async getTeamMembersByTeamId(): Promise<TeamMember[]> {
+    throw new Error("MemStorage: Not implemented - use DbStorage");
+  }
+
+  async getTeamMembersByUserId(): Promise<TeamMember[]> {
+    throw new Error("MemStorage: Not implemented - use DbStorage");
+  }
+
+  async createTeamMember(): Promise<TeamMember> {
+    throw new Error("MemStorage: Not implemented - use DbStorage");
+  }
+
+  async deleteTeamMember(): Promise<void> {
+    throw new Error("MemStorage: Not implemented - use DbStorage");
+  }
+
+  async updateTeamMemberRole(): Promise<TeamMember> {
+    throw new Error("MemStorage: Not implemented - use DbStorage");
+  }
+
+  async getTeamDomainsByTeamId(): Promise<TeamDomain[]> {
+    throw new Error("MemStorage: Not implemented - use DbStorage");
+  }
+
+  async getTeamDomainsByDomainId(): Promise<TeamDomain[]> {
+    throw new Error("MemStorage: Not implemented - use DbStorage");
+  }
+
+  async createTeamDomain(): Promise<TeamDomain> {
+    throw new Error("MemStorage: Not implemented - use DbStorage");
+  }
+
+  async deleteTeamDomain(): Promise<void> {
+    throw new Error("MemStorage: Not implemented - use DbStorage");
+  }
+
+  async createAuditLog(): Promise<AuditLog> {
+    throw new Error("MemStorage: Not implemented - use DbStorage");
+  }
+
+  async getAuditLogsByDomainId(): Promise<AuditLog[]> {
+    throw new Error("MemStorage: Not implemented - use DbStorage");
+  }
+
+  async getAuditLogsByUserId(): Promise<AuditLog[]> {
+    throw new Error("MemStorage: Not implemented - use DbStorage");
+  }
+
+  async getPublicReportByToken(): Promise<PublicReport | undefined> {
+    throw new Error("MemStorage: Not implemented - use DbStorage");
+  }
+
+  async getPublicReportsByDomainId(): Promise<PublicReport[]> {
+    throw new Error("MemStorage: Not implemented - use DbStorage");
+  }
+
+  async createPublicReport(): Promise<PublicReport> {
+    throw new Error("MemStorage: Not implemented - use DbStorage");
+  }
+
+  async deletePublicReport(): Promise<void> {
+    throw new Error("MemStorage: Not implemented - use DbStorage");
+  }
+
+  async getReportExportsByDomainId(): Promise<ReportExport[]> {
+    throw new Error("MemStorage: Not implemented - use DbStorage");
+  }
+
+  async createReportExport(): Promise<ReportExport> {
+    throw new Error("MemStorage: Not implemented - use DbStorage");
+  }
+
+  async getDomainAlertPref(): Promise<DomainAlertPref | undefined> {
+    throw new Error("MemStorage: Not implemented - use DbStorage");
+  }
+
+  async upsertDomainAlertPref(): Promise<DomainAlertPref> {
+    throw new Error("MemStorage: Not implemented - use DbStorage");
+  }
+
+  async updateUserPlan(userId: string, plan: string): Promise<User> {
+    const user = this.users.get(userId);
+    if (!user) throw new Error("User not found");
+    user.plan = plan;
+    this.users.set(userId, user);
+    return user;
   }
 }
 
