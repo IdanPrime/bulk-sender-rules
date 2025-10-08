@@ -169,6 +169,9 @@ export const reportExports = pgTable("report_exports", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   domainId: varchar("domain_id").references(() => domains.id, { onDelete: "cascade" }).notNull(),
   runId: varchar("run_id").references(() => scanRuns.id, { onDelete: "cascade" }).notNull(),
+  teamId: varchar("team_id").references(() => teams.id, { onDelete: "cascade" }),
+  urlToken: text("url_token").notNull(),
+  filePath: text("file_path").notNull(),
   format: text("format").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   bytesSize: integer("bytes_size"),
@@ -180,6 +183,14 @@ export const domainAlertPrefs = pgTable("domain_alert_prefs", {
   slackEnabled: text("slack_enabled").default("false").notNull(),
   threshold: text("threshold").default("warn").notNull(),
   digest: text("digest").default("false").notNull(),
+});
+
+export const appEvents = pgTable("app_events", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id, { onDelete: "cascade" }),
+  event: text("event").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  metaJson: jsonb("meta_json"),
 });
 
 export const insertUserSchema = createInsertSchema(users).omit({
@@ -323,3 +334,11 @@ export type ReportExport = typeof reportExports.$inferSelect;
 
 export type InsertDomainAlertPref = z.infer<typeof insertDomainAlertPrefSchema>;
 export type DomainAlertPref = typeof domainAlertPrefs.$inferSelect;
+
+export const insertAppEventSchema = createInsertSchema(appEvents).omit({
+  id: true,
+  createdAt: true,
+});
+
+export type InsertAppEvent = z.infer<typeof insertAppEventSchema>;
+export type AppEvent = typeof appEvents.$inferSelect;

@@ -39,6 +39,8 @@ import {
   type InsertReportExport,
   type DomainAlertPref,
   type InsertDomainAlertPref,
+  type AppEvent,
+  type InsertAppEvent,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 
@@ -131,6 +133,10 @@ export interface IStorage {
   getDomainAlertPref(domainId: string): Promise<DomainAlertPref | undefined>;
   upsertDomainAlertPref(domainAlertPref: InsertDomainAlertPref): Promise<DomainAlertPref>;
   updateUserPlan(userId: string, plan: string): Promise<User>;
+
+  createAppEvent(appEvent: InsertAppEvent): Promise<AppEvent>;
+  getAppEventsByUserId(userId: string, limit?: number): Promise<AppEvent[]>;
+  getAppEventsByEvent(event: string, limit?: number): Promise<AppEvent[]>;
 }
 
 export class MemStorage implements IStorage {
@@ -521,6 +527,18 @@ export class MemStorage implements IStorage {
     user.plan = plan;
     this.users.set(userId, user);
     return user;
+  }
+
+  async createAppEvent(): Promise<AppEvent> {
+    throw new Error("MemStorage: Not implemented - use DbStorage");
+  }
+
+  async getAppEventsByUserId(): Promise<AppEvent[]> {
+    throw new Error("MemStorage: Not implemented - use DbStorage");
+  }
+
+  async getAppEventsByEvent(): Promise<AppEvent[]> {
+    throw new Error("MemStorage: Not implemented - use DbStorage");
   }
 }
 

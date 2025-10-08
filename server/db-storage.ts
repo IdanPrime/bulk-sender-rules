@@ -21,6 +21,7 @@ import {
   publicReports,
   reportExports,
   domainAlertPrefs,
+  appEvents,
   type User,
   type InsertUser,
   type Domain,
@@ -61,6 +62,8 @@ import {
   type InsertReportExport,
   type DomainAlertPref,
   type InsertDomainAlertPref,
+  type AppEvent,
+  type InsertAppEvent,
 } from "@shared/schema";
 import type { IStorage } from "./storage";
 
@@ -528,5 +531,28 @@ export class DbStorage implements IStorage {
       .where(eq(users.id, userId))
       .returning();
     return result[0];
+  }
+
+  async createAppEvent(appEvent: InsertAppEvent): Promise<AppEvent> {
+    const result = await db.insert(appEvents).values(appEvent).returning();
+    return result[0];
+  }
+
+  async getAppEventsByUserId(userId: string, limit: number = 100): Promise<AppEvent[]> {
+    return await db
+      .select()
+      .from(appEvents)
+      .where(eq(appEvents.userId, userId))
+      .orderBy(desc(appEvents.createdAt))
+      .limit(limit);
+  }
+
+  async getAppEventsByEvent(event: string, limit: number = 100): Promise<AppEvent[]> {
+    return await db
+      .select()
+      .from(appEvents)
+      .where(eq(appEvents.event, event))
+      .orderBy(desc(appEvents.createdAt))
+      .limit(limit);
   }
 }
