@@ -105,6 +105,53 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/user/usage", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const userData = await storage.getUser(user.id);
+      
+      if (!userData) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      // Get domain count
+      const domains = await storage.getDomainsByUserId(user.id);
+      const domainCount = domains.length;
+
+      // Get plan limit
+      const planLimit = await storage.getPlanLimit(userData.plan);
+      const domainLimit = planLimit?.maxDomains || 1;
+
+      // Get alert count (last 30 days)
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      const recentAlerts = await storage.getAlertsSince(user.id, thirtyDaysAgo);
+      const alertCount = recentAlerts.length;
+
+      // Get scan count (last 30 days)
+      const recentScans = await storage.getScansSince(user.id, thirtyDaysAgo);
+      const scanCount = recentScans.length;
+
+      res.json({
+        plan: userData.plan,
+        domains: {
+          current: domainCount,
+          limit: domainLimit,
+          percentage: domainLimit > 0 ? Math.round((domainCount / domainLimit) * 100) : 0,
+        },
+        alerts: {
+          last30Days: alertCount,
+        },
+        scans: {
+          last30Days: scanCount,
+        },
+      });
+    } catch (error: any) {
+      console.error("Usage stats error:", error);
+      res.status(500).json({ error: "Failed to fetch usage statistics" });
+    }
+  });
+
   app.post("/api/domain", requireAuth, requireCapacity('domains'), async (req, res) => {
     try {
       const user = req.user as any;

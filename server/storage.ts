@@ -74,6 +74,7 @@ export interface IStorage {
 
   getScanRun(id: string): Promise<ScanRun | undefined>;
   getScanRunsByDomainId(domainId: string, limit?: number): Promise<ScanRun[]>;
+  getScansSince(userId: string, since: Date): Promise<ScanRun[]>;
   getLatestScanRunByDomainId(domainId: string): Promise<ScanRun | undefined>;
   getScanRunByDomainIdAndDate(domainId: string, date: string): Promise<ScanRun | undefined>;
   createScanRun(scanRun: InsertScanRun): Promise<ScanRun>;
@@ -87,6 +88,7 @@ export interface IStorage {
 
   getAlertsByDomainId(domainId: string): Promise<Alert[]>;
   getAlertsByUserId(userId: string): Promise<Alert[]>;
+  getAlertsSince(userId: string, since: Date): Promise<Alert[]>;
   createAlert(alert: InsertAlert): Promise<Alert>;
 
   getAlertPref(userId: string): Promise<AlertPref | undefined>;
@@ -330,6 +332,10 @@ export class MemStorage implements IStorage {
     throw new Error("MemStorage: Not implemented - use DbStorage");
   }
 
+  async getScansSince(): Promise<ScanRun[]> {
+    throw new Error("MemStorage: Not implemented - use DbStorage");
+  }
+
   async getLatestScanRunByDomainId(): Promise<ScanRun | undefined> {
     throw new Error("MemStorage: Not implemented - use DbStorage");
   }
@@ -367,6 +373,10 @@ export class MemStorage implements IStorage {
   }
 
   async getAlertsByUserId(): Promise<Alert[]> {
+    throw new Error("MemStorage: Not implemented - use DbStorage");
+  }
+
+  async getAlertsSince(): Promise<Alert[]> {
     throw new Error("MemStorage: Not implemented - use DbStorage");
   }
 

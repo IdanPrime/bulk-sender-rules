@@ -209,6 +209,19 @@ export class DbStorage implements IStorage {
     return limit ? await query.limit(limit) : await query;
   }
 
+  async getScansSince(userId: string, since: Date): Promise<ScanRun[]> {
+    const result = await db
+      .select()
+      .from(scanRuns)
+      .innerJoin(domains, eq(scanRuns.domainId, domains.id))
+      .where(and(
+        eq(domains.userId, userId),
+        sql`${scanRuns.createdAt} >= ${since.toISOString()}`
+      ))
+      .orderBy(desc(scanRuns.createdAt));
+    return result.map(r => r.scan_runs);
+  }
+
   async getLatestScanRunByDomainId(domainId: string): Promise<ScanRun | undefined> {
     const result = await db
       .select()
@@ -287,6 +300,19 @@ export class DbStorage implements IStorage {
       .from(alerts)
       .innerJoin(domains, eq(alerts.domainId, domains.id))
       .where(eq(domains.userId, userId))
+      .orderBy(desc(alerts.sentAt));
+    return result.map(r => r.alerts);
+  }
+
+  async getAlertsSince(userId: string, since: Date): Promise<Alert[]> {
+    const result = await db
+      .select()
+      .from(alerts)
+      .innerJoin(domains, eq(alerts.domainId, domains.id))
+      .where(and(
+        eq(domains.userId, userId),
+        sql`${alerts.sentAt} >= ${since.toISOString()}`
+      ))
       .orderBy(desc(alerts.sentAt));
     return result.map(r => r.alerts);
   }
