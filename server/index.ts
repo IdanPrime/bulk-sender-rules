@@ -110,5 +110,11 @@ app.use((req, res, next) => {
     }).catch((err) => {
       console.error("Failed to start monitoring:", err);
     });
+
+    import("./jobs/weeklyDigest").then(({ scheduleWeeklyDigest }) => {
+      scheduleWeeklyDigest();
+    }).catch((err) => {
+      console.error("Failed to start weekly digest:", err);
+    });
   });
 })();
