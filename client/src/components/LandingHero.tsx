@@ -32,6 +32,10 @@ export default function LandingHero() {
 
   const handleScan = () => {
     if (domain) {
+      toast({
+        title: "Scan Started",
+        description: `Analyzing DNS records for ${domain}...`,
+      });
       scanMutation.mutate(domain);
     }
   };

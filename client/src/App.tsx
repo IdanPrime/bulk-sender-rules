@@ -16,6 +16,7 @@ import SubscribePage from "@/pages/subscribe";
 import SettingsPage from "@/pages/settings";
 import AdminDashboard from "@/pages/admin";
 import NotFound from "@/pages/not-found";
+import Forbidden from "@/pages/forbidden";
 
 function Router() {
   return (
@@ -30,6 +31,7 @@ function Router() {
       <Route path="/template-lint" component={TemplateLintPage} />
       <Route path="/settings" component={SettingsPage} />
       <Route path="/admin" component={AdminDashboard} />
+      <Route path="/forbidden" component={Forbidden} />
       <Route path="/report/:slug" component={ReportPage} />
       <Route component={NotFound} />
     </Switch>

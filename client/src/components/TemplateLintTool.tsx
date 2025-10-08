@@ -6,6 +6,7 @@ import { AlertTriangle, CheckCircle2, Lightbulb } from "lucide-react";
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
+import ScoreBadge from "./ScoreBadge";
 
 export default function TemplateLintTool() {
   const [subject, setSubject] = useState("");
@@ -33,11 +34,6 @@ export default function TemplateLintTool() {
     lintMutation.mutate();
   };
 
-  const getScoreColor = (score: number) => {
-    if (score >= 80) return "text-success";
-    if (score >= 50) return "text-warning";
-    return "text-destructive";
-  };
 
   return (
     <div className="max-w-7xl mx-auto px-6 py-12">
@@ -82,11 +78,9 @@ export default function TemplateLintTool() {
         <div>
           {results ? (
             <Card className="p-6">
-              <div className="text-center mb-6">
-                <div className={`text-6xl font-bold mb-2 ${getScoreColor(results.score)}`}>
-                  {results.score}
-                </div>
-                <p className="text-sm text-muted-foreground">Deliverability Score</p>
+              <div className="flex flex-col items-center mb-6">
+                <ScoreBadge score={results.score} className="text-lg px-4 py-2" />
+                <p className="text-sm text-muted-foreground mt-2">Deliverability Score</p>
               </div>
 
               {results.warnings.length > 0 && (

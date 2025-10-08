@@ -11,6 +11,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useState } from "react";
+import { sanitizeDomain } from "@/lib/sanitize";
 
 interface PublicReportProps {
   slug: string;
@@ -56,7 +57,7 @@ export default function PublicReport({
     digest: string | boolean;
   }>({
     queryKey: ["/api/domains", domainId, "alert-prefs"],
-    enabled: isOwner && !!domainId,
+    enabled: Boolean(isOwner && domainId),
   });
 
   // Helper to normalize preferences to string values for API
@@ -76,8 +77,8 @@ export default function PublicReport({
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/domains", domainId, "alert-prefs"] });
       toast({
-        title: "Preferences Updated",
-        description: "Alert preferences have been saved successfully.",
+        title: "Alert Preferences Saved",
+        description: "Your notification settings have been updated successfully.",
       });
     },
     onError: (error: any) => {
@@ -104,7 +105,7 @@ export default function PublicReport({
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `${domain}-deliverability-report.pdf`;
+      a.download = `${sanitizeDomain(domain)}-deliverability-report.pdf`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
@@ -149,7 +150,7 @@ export default function PublicReport({
         <div className="flex items-start justify-between mb-6">
           <div>
             <h1 className="text-3xl font-bold mb-2" data-testid="text-report-domain">
-              {domain}
+              {sanitizeDomain(domain)}
             </h1>
             <p className="text-sm text-muted-foreground mb-4">
               Deliverability Report • Generated {scanDate}
@@ -180,18 +181,18 @@ export default function PublicReport({
         <div className="grid md:grid-cols-3 gap-4 mb-8 p-4 bg-muted rounded-lg">
           <div>
             <p className="text-sm text-muted-foreground mb-1">Total Records</p>
-            <p className="text-2xl font-bold">{records.length}</p>
+            <p className="text-2xl font-bold">{records?.length || 0}</p>
           </div>
           <div>
             <p className="text-sm text-muted-foreground mb-1">Passed</p>
             <p className="text-2xl font-bold text-success">
-              {records.filter((r) => r.status === "PASS").length}
+              {records?.filter((r) => r?.status === "PASS")?.length || 0}
             </p>
           </div>
           <div>
             <p className="text-sm text-muted-foreground mb-1">Issues</p>
             <p className="text-2xl font-bold text-destructive">
-              {records.filter((r) => r.status === "FAIL").length}
+              {records?.filter((r) => r?.status === "FAIL")?.length || 0}
             </p>
           </div>
         </div>
@@ -200,9 +201,11 @@ export default function PublicReport({
       <div className="space-y-6">
         <h2 className="text-2xl font-bold">DNS Records Analysis</h2>
         <div className="grid gap-6 md:grid-cols-2">
-          {records.map((record, index) => (
+          {records?.map((record, index) => (
             <DNSRecordCard key={index} {...record} />
-          ))}
+          )) || (
+            <p className="text-muted-foreground">No DNS records found</p>
+          )}
         </div>
       </div>
 

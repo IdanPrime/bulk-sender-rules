@@ -13,6 +13,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { sanitizeDomain } from "@/lib/sanitize";
 
 export default function Dashboard() {
   const { user, isAuthenticated, isLoading: authLoading } = useAuth();
@@ -97,8 +99,48 @@ export default function Dashboard() {
 
   if (isLoading) {
     return (
-      <div className="max-w-7xl mx-auto px-6 py-12 flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      <div className="max-w-7xl mx-auto px-6 py-12">
+        {/* Usage widget skeleton */}
+        <Card className="mb-6">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex-1">
+                <Skeleton className="h-4 w-64 mb-2" />
+                <Skeleton className="h-2 w-full max-w-md" />
+              </div>
+              <Skeleton className="h-9 w-24" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <div className="flex items-center justify-between mb-8">
+          <div>
+            <Skeleton className="h-9 w-48 mb-2" />
+            <Skeleton className="h-5 w-80" />
+          </div>
+          <Skeleton className="h-10 w-32" />
+        </div>
+
+        <Skeleton className="h-24 w-full mb-8" />
+
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+          {[...Array(3)].map((_, i) => (
+            <Card key={i} className="p-6">
+              <div className="flex items-start justify-between mb-4">
+                <div className="flex-1">
+                  <Skeleton className="h-6 w-40 mb-2" />
+                  <Skeleton className="h-5 w-24" />
+                </div>
+                <Skeleton className="h-6 w-16" />
+              </div>
+              <Skeleton className="h-4 w-32 mb-3" />
+              <div className="flex gap-2">
+                <Skeleton className="h-9 flex-1" />
+                <Skeleton className="h-9 flex-1" />
+              </div>
+            </Card>
+          ))}
+        </div>
       </div>
     );
   }
@@ -170,11 +212,11 @@ export default function Dashboard() {
           {domains.map((domain: any) => (
             <DomainCard
               key={domain.id}
-              domain={domain.name}
+              domain={sanitizeDomain(domain?.name)}
               lastScanDate={domain.latestReport ? formatDistanceToNow(new Date(domain.latestReport.createdAt), { addSuffix: true }) : "Never"}
               status={domain.latestReport?.scanJson?.summary?.overall || "WARN"}
               criticalIssues={domain.latestReport?.scanJson?.summary?.criticalIssues || 0}
-              onRescan={() => setLocation(`/?domain=${domain.name}&scan=true`)}
+              onRescan={() => setLocation(`/?domain=${sanitizeDomain(domain?.name)}&scan=true`)}
               onViewDetails={() => domain.latestReport && setLocation(`/report/${domain.latestReport.slug}`)}
             />
           ))}
