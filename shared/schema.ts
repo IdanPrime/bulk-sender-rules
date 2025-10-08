@@ -17,6 +17,7 @@ export const domains = pgTable("domains", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   name: text("name").notNull(),
   userId: varchar("user_id").references(() => users.id),
+  monitoringEnabled: text("monitoring_enabled").default("false").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -50,6 +51,22 @@ export const templateChecks = pgTable("template_checks", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+export const scans = pgTable("scans", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  domainId: varchar("domain_id").references(() => domains.id, { onDelete: "cascade" }).notNull(),
+  result: jsonb("result").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const alerts = pgTable("alerts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  domainId: varchar("domain_id").references(() => domains.id, { onDelete: "cascade" }).notNull(),
+  recordType: text("record_type").notNull(),
+  oldValue: text("old_value"),
+  newValue: text("new_value"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
   createdAt: true,
@@ -75,6 +92,16 @@ export const insertTemplateCheckSchema = createInsertSchema(templateChecks).omit
   createdAt: true,
 });
 
+export const insertScanSchema = createInsertSchema(scans).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertAlertSchema = createInsertSchema(alerts).omit({
+  id: true,
+  createdAt: true,
+});
+
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
 
@@ -89,3 +116,9 @@ export type HealthPoint = typeof healthPoints.$inferSelect;
 
 export type InsertTemplateCheck = z.infer<typeof insertTemplateCheckSchema>;
 export type TemplateCheck = typeof templateChecks.$inferSelect;
+
+export type InsertScan = z.infer<typeof insertScanSchema>;
+export type Scan = typeof scans.$inferSelect;
+
+export type InsertAlert = z.infer<typeof insertAlertSchema>;
+export type Alert = typeof alerts.$inferSelect;
