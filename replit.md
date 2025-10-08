@@ -4,9 +4,17 @@
 A web application that helps businesses comply with Gmail/Yahoo bulk-sender rules by scanning DNS records (SPF, DKIM, DMARC, BIMI, MX), linting email templates for spam triggers, tracking deliverability metrics, and generating shareable public reports.
 
 ## Current State
-Full-featured application with authentication, persistence, and automated monitoring capabilities. Supports both anonymous DNS scanning and authenticated features for registered users including saved scans, dashboard, and daily re-scan monitoring.
+Full-featured application with authentication, persistence, and automated DNS monitoring. Supports both anonymous DNS scanning and authenticated features for registered users. Pro users get automated background DNS monitoring that runs every 6 hours, detects DNS record changes, sends email alerts, and displays alerts in the dashboard.
 
-## Recent Changes (October 7, 2025)
+## Recent Changes (October 8, 2025)
+- **Automated DNS Monitoring**: Background job runs every 6 hours for Pro users with monitoring enabled
+- **Change Detection**: Diff checker service compares DNS scans and identifies changes in SPF, DKIM, DMARC, BIMI, MX records
+- **Email Alerts**: Automated email notifications sent to users when DNS changes are detected
+- **Alert History**: Database tables for storing scans and alerts with full change tracking
+- **Monitoring Control**: API endpoints to toggle monitoring on/off per domain and trigger manual runs
+- **Pro-Only Features**: Automated monitoring requires Pro subscription
+
+## Previous Changes (October 7, 2025)
 - **Stripe Subscription Integration**: Complete Pro plan upgrade flow with Stripe checkout
 - **Webhook Event Handling**: Automated subscription status updates via Stripe webhooks
 - **Billing Portal**: Pro users can manage subscriptions through Stripe customer portal
@@ -28,8 +36,10 @@ Full-featured application with authentication, persistence, and automated monito
 
 ### Database Schema (PostgreSQL)
 - `users`: User accounts (includes stripeCustomerId, stripeSubscriptionId, isPro fields)
-- `domains`: Registered domains for tracking
+- `domains`: Registered domains for tracking (includes monitoringEnabled field)
 - `reports`: Scan reports with shareable slugs (domainId is optional for free scans)
+- `scans`: DNS scan history with JSON results for change detection
+- `alerts`: DNS change alerts with old/new values and timestamps
 - `health_points`: Manual deliverability metrics
 - `template_checks`: Email template lint history
 
@@ -85,11 +95,17 @@ Full-featured application with authentication, persistence, and automated monito
 - `GET /api/domain/:id` - Get domain details
 - `GET /api/domains` - List all domains
 - `DELETE /api/domain/:id` - Delete domain (protected)
+- `PATCH /api/domain/:id/monitoring` - Toggle monitoring on/off (protected, Pro only)
 
 ### Template & Health
 - `POST /api/template-lint` - Lint email template
 - `POST /api/health-points` - Add health point (protected)
 - `GET /api/health-points` - Get health points
+
+### Alerts & Monitoring
+- `GET /api/alerts` - Get all alerts for current user (protected)
+- `GET /api/alerts/:domainId` - Get alerts for specific domain (protected)
+- `POST /api/monitoring/run` - Manually trigger monitoring cycle (protected, Pro only)
 
 ### Automation
 - `POST /api/cron/rescan` - Daily re-scan endpoint (requires X-Cron-Secret header or ?key= param)

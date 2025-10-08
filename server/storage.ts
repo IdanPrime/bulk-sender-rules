@@ -287,7 +287,11 @@ export class MemStorage implements IStorage {
   }
 
   async getMonitoredDomains(): Promise<Domain[]> {
-    return Array.from(this.domains.values()).filter((domain) => domain.monitoringEnabled === "true");
+    return Array.from(this.domains.values()).filter((domain) => {
+      if (domain.monitoringEnabled !== "true") return false;
+      const user = this.users.get(domain.userId);
+      return user?.isPro === "true";
+    });
   }
 }
 

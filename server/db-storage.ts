@@ -215,9 +215,17 @@ export class DbStorage implements IStorage {
   }
 
   async getMonitoredDomains(): Promise<Domain[]> {
-    return await db
-      .select()
+    const result = await db
+      .select({
+        id: domains.id,
+        userId: domains.userId,
+        name: domains.name,
+        monitoringEnabled: domains.monitoringEnabled,
+        createdAt: domains.createdAt,
+      })
       .from(domains)
-      .where(eq(domains.monitoringEnabled, "true"));
+      .innerJoin(users, eq(domains.userId, users.id))
+      .where(and(eq(domains.monitoringEnabled, "true"), eq(users.isPro, "true")));
+    return result;
   }
 }
