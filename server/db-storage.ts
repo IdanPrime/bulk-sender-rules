@@ -6,6 +6,8 @@ import {
   reports,
   healthPoints,
   templateChecks,
+  scans,
+  alerts,
   type User,
   type InsertUser,
   type Domain,
@@ -16,6 +18,10 @@ import {
   type InsertHealthPoint,
   type TemplateCheck,
   type InsertTemplateCheck,
+  type Scan,
+  type InsertScan,
+  type Alert,
+  type InsertAlert,
 } from "@shared/schema";
 import type { IStorage } from "./storage";
 
@@ -144,5 +150,74 @@ export class DbStorage implements IStorage {
   async createTemplateCheck(templateCheck: InsertTemplateCheck): Promise<TemplateCheck> {
     const result = await db.insert(templateChecks).values(templateCheck).returning();
     return result[0];
+  }
+
+  async getScansByDomainId(domainId: string): Promise<Scan[]> {
+    return await db
+      .select()
+      .from(scans)
+      .where(eq(scans.domainId, domainId))
+      .orderBy(desc(scans.createdAt));
+  }
+
+  async getLatestScanByDomainId(domainId: string): Promise<Scan | undefined> {
+    const result = await db
+      .select()
+      .from(scans)
+      .where(eq(scans.domainId, domainId))
+      .orderBy(desc(scans.createdAt))
+      .limit(1);
+    return result[0];
+  }
+
+  async createScan(scan: InsertScan): Promise<Scan> {
+    const result = await db.insert(scans).values(scan).returning();
+    return result[0];
+  }
+
+  async getAlertsByDomainId(domainId: string): Promise<Alert[]> {
+    return await db
+      .select()
+      .from(alerts)
+      .where(eq(alerts.domainId, domainId))
+      .orderBy(desc(alerts.createdAt));
+  }
+
+  async getAlertsByUserId(userId: string): Promise<Alert[]> {
+    const result = await db
+      .select({
+        id: alerts.id,
+        domainId: alerts.domainId,
+        recordType: alerts.recordType,
+        oldValue: alerts.oldValue,
+        newValue: alerts.newValue,
+        createdAt: alerts.createdAt,
+      })
+      .from(alerts)
+      .innerJoin(domains, eq(alerts.domainId, domains.id))
+      .where(eq(domains.userId, userId))
+      .orderBy(desc(alerts.createdAt));
+    return result;
+  }
+
+  async createAlert(alert: InsertAlert): Promise<Alert> {
+    const result = await db.insert(alerts).values(alert).returning();
+    return result[0];
+  }
+
+  async updateDomainMonitoring(domainId: string, enabled: boolean): Promise<Domain> {
+    const result = await db
+      .update(domains)
+      .set({ monitoringEnabled: enabled ? "true" : "false" })
+      .where(eq(domains.id, domainId))
+      .returning();
+    return result[0];
+  }
+
+  async getMonitoredDomains(): Promise<Domain[]> {
+    return await db
+      .select()
+      .from(domains)
+      .where(eq(domains.monitoringEnabled, "true"));
   }
 }
