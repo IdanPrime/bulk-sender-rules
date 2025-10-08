@@ -1,11 +1,14 @@
 import cron from "node-cron";
 import { storage } from "../storage";
-import { scanDNS, type DNSScanResult } from "../lib/dns-scanner";
-import { detectChanges } from "../services/diffChecker";
-import { sendAlertEmail } from "../services/notify";
+import { runScan } from "../services/scanRunner";
+
+function getTodayDate(): string {
+  const today = new Date();
+  return today.toISOString().split('T')[0];
+}
 
 export async function runMonitoring() {
-  console.log("[monitor] Starting automated DNS monitoring...");
+  console.log("[monitor] Starting daily DNS monitoring...");
 
   try {
     const monitoredDomains = await storage.getMonitoredDomains();
@@ -29,66 +32,48 @@ export async function runMonitoring() {
           continue;
         }
 
+        const today = getTodayDate();
+        const existingRun = await storage.getScanRunByDomainIdAndDate(domain.id, today);
+        
+        if (existingRun) {
+          console.log(`[monitor] ℹ Already scanned ${domain.name} today, skipping`);
+          continue;
+        }
+
         console.log(`[monitor] Scanning domain: ${domain.name}`);
-        const scanResult = await scanDNS(domain.name);
-
-        const latestScan = await storage.getLatestScanByDomainId(domain.id);
-
-        await storage.createScan({
-          domainId: domain.id,
-          result: scanResult,
-        });
-
-        if (latestScan) {
-          const changes = detectChanges(latestScan.result as DNSScanResult, scanResult);
-          
-          if (changes.length > 0) {
-            console.log(`[monitor] ✓ Detected ${changes.length} changes for ${domain.name}`);
-            
-            for (const change of changes) {
-              await storage.createAlert({
-                domainId: domain.id,
-                recordType: change.recordType,
-                oldValue: change.oldValue,
-                newValue: change.newValue,
-              });
-
-              await sendAlertEmail({
-                to: user.email,
-                domain: domain.name,
-                recordType: change.recordType,
-                oldValue: change.oldValue,
-                newValue: change.newValue,
-              });
-            }
-          } else {
-            console.log(`[monitor] ✓ No changes detected for ${domain.name}`);
-          }
-        } else {
-          console.log(`[monitor] ✓ First scan for ${domain.name}, no comparison`);
+        const { runId, score } = await runScan(domain.id, domain.name, storage);
+        
+        console.log(`[monitor] ✓ Completed scan for ${domain.name} (runId: ${runId}, score: ${score})`);
+        
+        const diff = await storage.getLatestScanDiffByDomainId(domain.id);
+        if (diff && diff.severity === "fail") {
+          console.log(`[monitor] ⚠ FAIL severity detected for ${domain.name}`);
+        } else if (diff && diff.severity === "warn") {
+          console.log(`[monitor] ⚠ WARN severity detected for ${domain.name}`);
         }
       } catch (error) {
         console.error(`[monitor] ✗ Error scanning ${domain.name}:`, error);
       }
     }
 
-    console.log("[monitor] ✓ Monitoring cycle completed");
+    console.log("[monitor] ✓ Daily monitoring cycle completed");
   } catch (error) {
     console.error("[monitor] ✗ Monitoring error:", error);
   }
 }
 
 export function startMonitoring() {
-  const intervalHours = parseInt(process.env.SCAN_INTERVAL_HOURS || "6", 10);
-  const cronExpression = `0 */${intervalHours} * * *`;
+  const cronExpression = "0 0 * * *";
   
-  console.log(`[monitor] Scheduling monitoring every ${intervalHours} hours`);
+  console.log("[monitor] Scheduling daily monitoring at midnight UTC");
   console.log(`[monitor] Cron expression: ${cronExpression}`);
   
   cron.schedule(cronExpression, async () => {
-    console.log(`[monitor] Triggered at ${new Date().toISOString()}`);
+    console.log(`[monitor] Daily scan triggered at ${new Date().toISOString()}`);
     await runMonitoring();
+  }, {
+    timezone: "UTC"
   });
 
-  console.log("[monitor] ✓ Monitoring scheduler started");
+  console.log("[monitor] ✓ Daily monitoring scheduler started");
 }
