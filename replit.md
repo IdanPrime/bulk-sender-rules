@@ -29,6 +29,12 @@ I prefer simple language. I want iterative development. Ask before making major 
 - **Monitoring Job Updates**: Smart alerting with preference-aware notifications
   - Loads domain + user preferences, merges field-by-field
   - Filters channels, checks thresholds, only logs when actually sent
+- **Branded PDF Exports (Agency Tier)**: White-label PDF deliverability reports
+  - New tables: `report_exports`, `app_events`; added `brandLogo` and `brandColor` to teams
+  - Service: `services/pdfExport.ts` using Playwright for high-quality PDF generation
+  - Route: `POST /api/reports/:token/export` with auth, plan, and team membership validation
+  - UI: Download button on public reports (only visible to Agency users with pdf feature)
+  - Features: A4 format, team branding (logo/color), accurate file metadata, audit logging
 
 ## System Architecture
 
@@ -61,6 +67,7 @@ The application is built with a React frontend (TypeScript, Vite) and an Express
   - `services/scanRunner.ts`: Complete scan workflow orchestration  
   - `services/auditLog.ts`: Event tracking across all operations
   - `services/notifications.ts`: Slack/webhook delivery with channel filtering
+  - `services/pdfExport.ts`: Branded PDF generation using Playwright (Agency tier only)
 - **Middleware**: 
   - `middleware/planLimits.ts`: Domain capacity and feature enforcement
   - `middleware/accessControl.ts`: Team-based permission checking
