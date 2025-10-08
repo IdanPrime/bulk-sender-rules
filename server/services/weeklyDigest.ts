@@ -1,5 +1,9 @@
 import { IStorage } from "../storage";
 import nodemailer from "nodemailer";
+import { chromium } from "playwright";
+import { tmpdir } from "os";
+import { join } from "path";
+import { writeFile, unlink } from "fs/promises";
 
 export interface DigestData {
   userName: string;
@@ -175,6 +179,37 @@ export function generateDigestHTML(data: DigestData): string {
   `.trim();
 }
 
+async function generateWeeklySummaryPDF(digestData: DigestData): Promise<string> {
+  const browser = await chromium.launch({ headless: true });
+  
+  try {
+    const page = await browser.newPage();
+    const html = generateDigestHTML(digestData);
+    
+    await page.setContent(html, { waitUntil: "networkidle" });
+    
+    const date = new Date().toISOString().split('T')[0];
+    const fileName = `weekly-summary-${date}.pdf`;
+    const filePath = join(tmpdir(), fileName);
+    
+    await page.pdf({
+      path: filePath,
+      format: "A4",
+      margin: {
+        top: "12mm",
+        right: "12mm",
+        bottom: "12mm",
+        left: "12mm",
+      },
+      printBackground: true,
+    });
+    
+    return filePath;
+  } finally {
+    await browser.close();
+  }
+}
+
 export async function sendWeeklyDigest(
   storage: IStorage,
   userId: string,
@@ -196,13 +231,30 @@ export async function sendWeeklyDigest(
   });
 
   const html = generateDigestHTML(digestData);
+  
+  // Generate PDF summary
+  const pdfPath = await generateWeeklySummaryPDF(digestData);
+  const pdfFileName = `weekly-summary-${new Date().toISOString().split('T')[0]}.pdf`;
 
-  await transporter.sendMail({
-    from: `"Deliverability Copilot" <${process.env.SMTP_USER}>`,
-    to: user.email,
-    subject: `📊 Your Weekly Deliverability Digest`,
-    html,
-  });
+  try {
+    await transporter.sendMail({
+      from: `"Deliverability Copilot" <${process.env.SMTP_USER}>`,
+      to: user.email,
+      subject: `📊 Your Weekly Deliverability Digest`,
+      html,
+      attachments: [
+        {
+          filename: pdfFileName,
+          path: pdfPath,
+        },
+      ],
+    });
+  } finally {
+    // Clean up temp PDF file
+    await unlink(pdfPath).catch(() => {
+      // Ignore cleanup errors
+    });
+  }
 
   // Log to email_log table
   await storage.createEmailLog({
@@ -213,6 +265,7 @@ export async function sendWeeklyDigest(
       totalScans: digestData.weeklyStats.totalScans,
       totalAlerts: digestData.weeklyStats.totalAlerts,
       avgScore: digestData.weeklyStats.avgScore,
+      pdfAttached: true,
     },
   });
 }
