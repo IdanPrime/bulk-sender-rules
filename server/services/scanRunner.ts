@@ -22,11 +22,11 @@ function normalizeRecords(scanResult: any): DnsRecord[] {
   if (scanResult.spf) {
     records.push({
       type: "spf",
-      value: scanResult.spf.raw || "",
+      value: scanResult.spf.record || "",
       verdict: scanResult.spf.status || "INFO",
       meta: {
-        aligned: scanResult.spf.aligned,
-        mechanisms: scanResult.spf.mechanisms,
+        issues: scanResult.spf.issues,
+        suggestions: scanResult.spf.suggestions,
       },
     });
   }
@@ -36,9 +36,12 @@ function normalizeRecords(scanResult: any): DnsRecord[] {
       records.push({
         type: "dkim",
         selector: sel.selector,
-        value: sel.raw || "",
+        value: sel.record || "",
         verdict: sel.status || "INFO",
-        meta: { aligned: sel.aligned },
+        meta: {
+          issues: sel.issues,
+          suggestions: sel.suggestions,
+        },
       });
     }
   }
@@ -46,13 +49,11 @@ function normalizeRecords(scanResult: any): DnsRecord[] {
   if (scanResult.dmarc) {
     records.push({
       type: "dmarc",
-      value: scanResult.dmarc.raw || "",
+      value: scanResult.dmarc.record || "",
       verdict: scanResult.dmarc.status || "INFO",
       meta: {
-        policy: scanResult.dmarc.policy,
-        pct: scanResult.dmarc.pct,
-        aspf: scanResult.dmarc.aspf,
-        adkim: scanResult.dmarc.adkim,
+        issues: scanResult.dmarc.issues,
+        suggestions: scanResult.dmarc.suggestions,
       },
     });
   }
@@ -60,22 +61,25 @@ function normalizeRecords(scanResult: any): DnsRecord[] {
   if (scanResult.bimi) {
     records.push({
       type: "bimi",
-      value: scanResult.bimi.raw || "",
+      value: scanResult.bimi.record || "",
       verdict: scanResult.bimi.status || "INFO",
-      meta: { location: scanResult.bimi.location },
+      meta: {
+        issues: scanResult.bimi.issues,
+        suggestions: scanResult.bimi.suggestions,
+      },
     });
   }
 
-  if (scanResult.mx && Array.isArray(scanResult.mx.records)) {
-    for (const mx of scanResult.mx.records) {
-      records.push({
-        type: "mx",
-        selector: mx.host,
-        value: `${mx.priority} ${mx.host}`,
-        verdict: scanResult.mx.status || "INFO",
-        meta: { priority: mx.priority, host: mx.host },
-      });
-    }
+  if (scanResult.mx) {
+    records.push({
+      type: "mx",
+      value: scanResult.mx.record || "",
+      verdict: scanResult.mx.status || "INFO",
+      meta: {
+        issues: scanResult.mx.issues,
+        suggestions: scanResult.mx.suggestions,
+      },
+    });
   }
 
   return records;
