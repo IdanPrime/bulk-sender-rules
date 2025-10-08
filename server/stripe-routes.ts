@@ -17,7 +17,65 @@ if (stripeSecretKey) {
   }
 }
 
+// Cache for billing portal sessions (5 minute TTL)
+const portalSessionCache = new Map<string, { url: string; expiry: number }>();
+const PORTAL_CACHE_TTL = 5 * 60 * 1000; // 5 minutes in milliseconds
+
 export function registerStripeRoutes(app: Express) {
+  // POST /api/portal/create-session - Create billing portal session with 5min cache
+  app.post("/api/portal/create-session", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      if (!user || !user.id) {
+        return res.status(401).json({ error: "User not authenticated" });
+      }
+
+      // Check cache first
+      const cacheKey = user.id;
+      const cached = portalSessionCache.get(cacheKey);
+      if (cached && cached.expiry > Date.now()) {
+        console.log(`[portal.create-session] ✓ Cache hit for user ${user.email}`);
+        return res.json({ url: cached.url });
+      }
+
+      const sk = process.env.STRIPE_SECRET_KEY;
+      if (!sk) {
+        console.error("[portal.create-session] STRIPE_SECRET_KEY missing");
+        return res.status(500).json({ error: "Stripe not configured" });
+      }
+
+      const stripeClient = new Stripe(sk, { apiVersion: "2025-09-30.clover" });
+      const userData = await storage.getUser(user.id);
+      
+      if (!userData?.stripeCustomerId) {
+        console.error("[portal.create-session] No Stripe customer ID for user:", user.id);
+        return res.status(400).json({ error: "No billing account found. Please subscribe first." });
+      }
+
+      const baseUrl = (process.env.NEXTAUTH_URL || process.env.REPLIT_DEV_DOMAIN || "").replace(/\/$/, "");
+      const formattedBaseUrl = baseUrl.startsWith("http://") || baseUrl.startsWith("https://") 
+        ? baseUrl 
+        : `https://${baseUrl}`;
+
+      const portalSession = await stripeClient.billingPortal.sessions.create({
+        customer: userData.stripeCustomerId,
+        return_url: `${formattedBaseUrl}/settings`,
+      });
+
+      // Cache the session URL for 5 minutes
+      portalSessionCache.set(cacheKey, {
+        url: portalSession.url,
+        expiry: Date.now() + PORTAL_CACHE_TTL,
+      });
+
+      console.log(`[portal.create-session] ✓ Portal session created and cached for user ${user.email}`);
+      return res.json({ url: portalSession.url });
+    } catch (error: any) {
+      console.error("[portal.create-session] Error:", error);
+      return res.status(500).json({ error: "Failed to create billing portal session" });
+    }
+  });
+
   app.get("/api/billing/verify", async (req, res) => {
     const sessionId = req.query.session_id as string;
     console.log(`[billing.verify] 🔍 Starting verification for session_id: ${sessionId}`);

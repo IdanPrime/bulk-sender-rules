@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import TeamsTab from "./teams-tab";
 import DestinationsTab from "./destinations-tab";
 import AlertPrefsTab from "./alert-prefs-tab";
+import BillingTab from "./billing-tab";
 
 export default function SettingsPage() {
   const { isAuthenticated, isLoading: authLoading, user } = useAuth();
@@ -53,9 +54,12 @@ export default function SettingsPage() {
       </div>
 
       <Tabs defaultValue="alert-prefs" className="w-full">
-        <TabsList className="grid w-full grid-cols-3 mb-8">
+        <TabsList className="grid w-full grid-cols-4 mb-8">
           <TabsTrigger value="alert-prefs" data-testid="tab-alert-prefs">
             Alert Preferences
+          </TabsTrigger>
+          <TabsTrigger value="billing" data-testid="tab-billing">
+            Billing
           </TabsTrigger>
           {(hasSlackFeature || hasWebhookFeature) && (
             <TabsTrigger value="destinations" data-testid="tab-destinations">
@@ -71,6 +75,10 @@ export default function SettingsPage() {
 
         <TabsContent value="alert-prefs">
           <AlertPrefsTab />
+        </TabsContent>
+
+        <TabsContent value="billing">
+          <BillingTab />
         </TabsContent>
 
         {(hasSlackFeature || hasWebhookFeature) && (
