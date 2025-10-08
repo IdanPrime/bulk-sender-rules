@@ -7,11 +7,13 @@ import { insertDomainSchema, insertReportSchema, insertHealthPointSchema, insert
 import { randomBytes } from "crypto";
 import { registerAuthRoutes, requireAuth } from "./auth-routes";
 import { registerStripeRoutes } from "./stripe-routes";
+import { registerAlertRoutes } from "./routes/alerts";
 import { runDailyRescans } from "./lib/cron";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   registerAuthRoutes(app);
   registerStripeRoutes(app);
+  registerAlertRoutes(app);
 
   app.post("/api/cron/rescan", async (req, res) => {
     try {
@@ -178,6 +180,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error("Delete domain error:", error);
       res.status(500).json({ error: "Failed to delete domain", details: error.message });
+    }
+  });
+
+  app.patch("/api/domain/:id/monitoring", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { enabled } = req.body;
+      const domain = await storage.getDomain(req.params.id);
+      
+      if (!domain || domain.userId !== user.id) {
+        return res.status(404).json({ error: "Domain not found" });
+      }
+
+      if (user.isPro !== "true" && enabled) {
+        return res.status(403).json({ error: "Pro subscription required for automated monitoring" });
+      }
+
+      const updatedDomain = await storage.updateDomainMonitoring(req.params.id, enabled);
+      res.json(updatedDomain);
+    } catch (error: any) {
+      console.error("Update monitoring error:", error);
+      res.status(500).json({ error: "Failed to update monitoring", details: error.message });
+    }
+  });
+
+  app.post("/api/monitoring/run", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      
+      if (user.isPro !== "true") {
+        return res.status(403).json({ error: "Pro subscription required for monitoring" });
+      }
+
+      const { runMonitoring } = await import("./jobs/monitor");
+      await runMonitoring();
+      res.json({ success: true, message: "Monitoring cycle completed" });
+    } catch (error: any) {
+      console.error("Manual monitoring error:", error);
+      res.status(500).json({ error: "Failed to run monitoring", details: error.message });
     }
   });
 

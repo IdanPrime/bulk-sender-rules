@@ -104,5 +104,11 @@ app.use((req, res, next) => {
     reusePort: true,
   }, () => {
     log(`serving on port ${port}`);
+    
+    import("./jobs/monitor").then(({ startMonitoring }) => {
+      startMonitoring();
+    }).catch((err) => {
+      console.error("Failed to start monitoring:", err);
+    });
   });
 })();

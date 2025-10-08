@@ -1,10 +1,4 @@
-interface DNSRecord {
-  spf?: { value: string; status: string };
-  dkim?: { value: string; status: string };
-  dmarc?: { value: string; status: string };
-  bimi?: { value: string; status: string };
-  mx?: { records: any[]; status: string };
-}
+import type { DNSScanResult } from "../lib/dns-scanner";
 
 interface RecordChange {
   recordType: string;
@@ -12,48 +6,48 @@ interface RecordChange {
   newValue: string;
 }
 
-export function detectChanges(oldScan: DNSRecord, newScan: DNSRecord): RecordChange[] {
+export function detectChanges(oldScan: DNSScanResult, newScan: DNSScanResult): RecordChange[] {
   const changes: RecordChange[] = [];
 
-  if (oldScan.spf?.value !== newScan.spf?.value) {
+  if (oldScan.spf?.record !== newScan.spf?.record) {
     changes.push({
       recordType: "SPF",
-      oldValue: oldScan.spf?.value || "none",
-      newValue: newScan.spf?.value || "none",
+      oldValue: oldScan.spf?.record || "none",
+      newValue: newScan.spf?.record || "none",
     });
   }
 
-  if (oldScan.dkim?.value !== newScan.dkim?.value) {
+  const oldDkim = JSON.stringify(oldScan.dkim?.selectors || []);
+  const newDkim = JSON.stringify(newScan.dkim?.selectors || []);
+  if (oldDkim !== newDkim) {
     changes.push({
       recordType: "DKIM",
-      oldValue: oldScan.dkim?.value || "none",
-      newValue: newScan.dkim?.value || "none",
+      oldValue: oldDkim,
+      newValue: newDkim,
     });
   }
 
-  if (oldScan.dmarc?.value !== newScan.dmarc?.value) {
+  if (oldScan.dmarc?.record !== newScan.dmarc?.record) {
     changes.push({
       recordType: "DMARC",
-      oldValue: oldScan.dmarc?.value || "none",
-      newValue: newScan.dmarc?.value || "none",
+      oldValue: oldScan.dmarc?.record || "none",
+      newValue: newScan.dmarc?.record || "none",
     });
   }
 
-  if (oldScan.bimi?.value !== newScan.bimi?.value) {
+  if (oldScan.bimi?.record !== newScan.bimi?.record) {
     changes.push({
       recordType: "BIMI",
-      oldValue: oldScan.bimi?.value || "none",
-      newValue: newScan.bimi?.value || "none",
+      oldValue: oldScan.bimi?.record || "none",
+      newValue: newScan.bimi?.record || "none",
     });
   }
 
-  const oldMX = JSON.stringify(oldScan.mx?.records || []);
-  const newMX = JSON.stringify(newScan.mx?.records || []);
-  if (oldMX !== newMX) {
+  if (oldScan.mx?.record !== newScan.mx?.record) {
     changes.push({
       recordType: "MX",
-      oldValue: oldMX,
-      newValue: newMX,
+      oldValue: oldScan.mx?.record || "none",
+      newValue: newScan.mx?.record || "none",
     });
   }
 
