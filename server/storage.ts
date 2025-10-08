@@ -72,6 +72,7 @@ export interface IStorage {
   getTemplateChecksByUserId(userId: string): Promise<TemplateCheck[]>;
   createTemplateCheck(templateCheck: InsertTemplateCheck): Promise<TemplateCheck>;
 
+  getScanRun(id: string): Promise<ScanRun | undefined>;
   getScanRunsByDomainId(domainId: string, limit?: number): Promise<ScanRun[]>;
   getLatestScanRunByDomainId(domainId: string): Promise<ScanRun | undefined>;
   getScanRunByDomainIdAndDate(domainId: string, date: string): Promise<ScanRun | undefined>;
@@ -319,6 +320,10 @@ export class MemStorage implements IStorage {
     };
     this.templateChecks.set(id, templateCheck);
     return templateCheck;
+  }
+
+  async getScanRun(): Promise<ScanRun | undefined> {
+    throw new Error("MemStorage: Not implemented - use DbStorage");
   }
 
   async getScanRunsByDomainId(): Promise<ScanRun[]> {

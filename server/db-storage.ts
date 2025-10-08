@@ -194,6 +194,11 @@ export class DbStorage implements IStorage {
     return result[0];
   }
 
+  async getScanRun(id: string): Promise<ScanRun | undefined> {
+    const result = await db.select().from(scanRuns).where(eq(scanRuns.id, id));
+    return result[0];
+  }
+
   async getScanRunsByDomainId(domainId: string, limit?: number): Promise<ScanRun[]> {
     const query = db
       .select()

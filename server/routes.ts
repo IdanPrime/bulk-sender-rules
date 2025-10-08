@@ -323,6 +323,84 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.post("/api/reports/:token/export", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as any;
+      const { token } = req.params;
+
+      const publicReport = await storage.getPublicReportByToken(token);
+      
+      if (!publicReport) {
+        return res.status(404).json({ error: "Report not found or expired" });
+      }
+
+      const domain = await storage.getDomain(publicReport.domainId);
+      if (!domain) {
+        return res.status(404).json({ error: "Domain not found" });
+      }
+
+      const userPlan = await storage.getPlanLimit(user.plan || "Free");
+      const features = userPlan?.features as any || {};
+
+      if (!features.pdf) {
+        return res.status(403).json({ error: "PDF export requires Pro or Agency plan" });
+      }
+
+      const { canAccessDomain } = await import("./middleware/accessControl");
+      const hasAccess = await canAccessDomain(user.id, publicReport.domainId);
+      
+      if (!hasAccess) {
+        return res.status(403).json({ error: "You don't have access to this domain" });
+      }
+
+      const { generatePdfExport } = await import("./services/pdfExport");
+      
+      let brandOptions: any = { token };
+      
+      if (user.plan === "Agency" && req.body.teamId) {
+        const team = await storage.getTeamById(req.body.teamId);
+        if (!team) {
+          return res.status(404).json({ error: "Team not found" });
+        }
+
+        const teamMembers = await storage.getTeamMembersByTeamId(team.id);
+        const isMember = teamMembers.some(m => m.userId === user.id);
+        
+        if (!isMember) {
+          return res.status(403).json({ error: "You are not a member of this team" });
+        }
+
+        brandOptions.teamId = team.id;
+        brandOptions.brandLogo = team.brandLogo || undefined;
+        brandOptions.brandColor = team.brandColor || undefined;
+      }
+
+      const { filePath, fileName, bytesSize } = await generatePdfExport(brandOptions);
+
+      await storage.createReportExport({
+        domainId: publicReport.domainId,
+        runId: publicReport.runId,
+        teamId: brandOptions.teamId || null,
+        urlToken: token,
+        filePath,
+        format: "pdf",
+        bytesSize,
+      });
+
+      await logAuditEvent({
+        actorUserId: user.id,
+        event: AuditEvents.PDF_EXPORTED,
+        domainId: publicReport.domainId,
+        meta: { token, fileName },
+      });
+
+      res.download(filePath, fileName);
+    } catch (error: any) {
+      console.error("PDF export error:", error);
+      res.status(500).json({ error: "Failed to export PDF", details: error.message });
+    }
+  });
+
   app.post("/api/template-lint", async (req, res) => {
     try {
       const { subject, html, text, userId } = req.body;
