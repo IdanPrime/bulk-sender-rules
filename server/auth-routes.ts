@@ -4,6 +4,7 @@ import { passport } from "./auth";
 import { storage } from "./storage";
 import { insertUserSchema } from "@shared/schema";
 import { z } from "zod";
+import { trackEvent, AppEventType } from "./services/analytics";
 
 const signupSchema = insertUserSchema.extend({
   password: z.string().min(6, "Password must be at least 6 characters"),
@@ -29,6 +30,9 @@ export function registerAuthRoutes(app: Express) {
 
       const passwordHash = await bcrypt.hash(password, 10);
       const user = await storage.createUser({ email, passwordHash });
+
+      // Track registration event
+      await trackEvent(storage, AppEventType.USER_REGISTERED, user.id, { email: user.email });
 
       res.json({ success: true, user: { id: user.id, email: user.email } });
     } catch (error: any) {
@@ -74,6 +78,9 @@ export function registerAuthRoutes(app: Express) {
             isAuthenticated: req.isAuthenticated(),
             userId: req.user ? (req.user as any).id : null
           });
+          
+          // Track login event
+          trackEvent(storage, AppEventType.USER_LOGIN, user.id, { email: user.email });
           
           return res.json({ success: true, user: { id: user.id, email: user.email } });
         });

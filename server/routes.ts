@@ -11,6 +11,7 @@ import { registerAlertRoutes } from "./routes/alerts";
 import { runDailyRescans } from "./lib/cron";
 import { requireCapacity } from "./middleware/planLimits";
 import { logAuditEvent, AuditEvents } from "./services/auditLog";
+import { trackEvent, AppEventType } from "./services/analytics";
 import destinationsRouter from "./routes/destinations";
 import publicReportsRouter from "./routes/publicReports";
 import teamsRouter from "./routes/teams";
@@ -173,6 +174,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         domainId: domain.id,
         meta: { domainName: domain.name },
       });
+
+      // Track analytics event
+      await trackEvent(storage, AppEventType.DOMAIN_ADDED, user.id, { domainName: domain.name });
       
       res.json(domain);
     } catch (error: any) {
@@ -242,6 +246,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!domain || domain.userId !== user.id) {
         return res.status(404).json({ error: "Domain not found" });
       }
+
+      // Track analytics event before deletion
+      await trackEvent(storage, AppEventType.DOMAIN_DELETED, user.id, { domainName: domain.name });
 
       await storage.deleteDomain(req.params.id);
       res.json({ success: true });
