@@ -221,7 +221,14 @@ export default function Dashboard() {
               status={domain.latestReport?.scanJson?.summary?.overall || "WARN"}
               criticalIssues={domain.latestReport?.scanJson?.summary?.criticalIssues || 0}
               onRescan={() => setLocation(`/?domain=${sanitizeDomain(domain?.name)}&scan=true`)}
-              onViewDetails={() => domain.latestReport && setLocation(`/report/${domain.latestReport.slug}`)}
+              onViewDetails={() => {
+                if (domain.latestReport) {
+                  setLocation(`/report/${domain.latestReport.slug}`);
+                } else {
+                  // No report yet, navigate to scan page
+                  setLocation(`/?domain=${sanitizeDomain(domain?.name)}&scan=true`);
+                }
+              }}
             />
           ))}
         </div>
