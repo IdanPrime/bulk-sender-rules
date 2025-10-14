@@ -5,6 +5,9 @@ import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { passport } from "./auth";
 import { pool } from "./db";
+import path from "path";
+import { fileURLToPath } from "url";
+import express from "express";
 
 const app = express();
 app.use((req, res, next) => {
@@ -118,3 +121,15 @@ app.use((req, res, next) => {
     });
   });
 })();
+
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Serve static frontend build
+app.use(express.static(path.join(__dirname, "public")));
+
+// Catch-all route to send the main index.html for SPA routing
+app.get("*", (_req, res) => {
+  res.sendFile(path.join(__dirname, "public", "index.html"));
+});
