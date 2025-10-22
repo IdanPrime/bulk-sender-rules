@@ -129,10 +129,6 @@ const __dirname = path.dirname(__filename);
 // Serve static frontend build
 app.use(express.static(path.join(__dirname, "public")));
 
-// Serve robots.txt and sitemap.xml explicitly
-app.get(["/robots.txt", "/sitemap.xml"], (req, res) => {
-  res.sendFile(path.join(__dirname, "public", req.path));
-});
 
 // Catch-all route to send the main index.html for SPA routing
 app.get("*", (_req, res) => {
